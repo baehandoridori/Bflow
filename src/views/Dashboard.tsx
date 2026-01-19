@@ -4,6 +4,7 @@ import {
   GanttWidget,
   TeamWidget,
   TasksWidget,
+  CalendarWidget,
 } from '@/components/widgets';
 
 export function Dashboard() {
@@ -18,6 +19,7 @@ export function Dashboard() {
       <GanttWidget />
       <TeamWidget />
       <TasksWidget />
+      <CalendarWidget />
     </motion.div>
   );
 }
