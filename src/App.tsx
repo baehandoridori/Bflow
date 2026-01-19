@@ -6,6 +6,7 @@ import {
   Timeline,
   CalendarView,
   NodeMapView,
+  TasksView,
 } from '@/views';
 
 function App() {
@@ -17,6 +18,8 @@ function App() {
         return <Dashboard />;
       case 'timeline':
         return <Timeline />;
+      case 'tasks':
+        return <TasksView />;
       case 'calendar':
         return <CalendarView />;
       case 'team':

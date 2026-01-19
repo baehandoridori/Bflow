@@ -1,8 +1,12 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
+import { Edit2 } from 'lucide-react';
 import { Card, CardContent, Avatar, Badge } from '@/components/ui';
-import { useTeamStore } from '@/stores/useTeamStore';
-import { useTaskStore } from '@/stores/useTaskStore';
+import { Modal } from '@/components/ui/Modal';
+import { TaskForm } from '@/components/forms/TaskForm';
+import { useDataStore } from '@/stores/useDataStore';
 import { cn } from '@/utils/cn';
+import type { Task } from '@/types';
 
 const statusLabels: Record<string, string> = {
   working: '작업 중',
@@ -29,15 +33,15 @@ const statusBgColors: Record<string, string> = {
 };
 
 export function TeamView() {
-  const { members } = useTeamStore();
-  const { getTaskById } = useTaskStore();
+  const { teamMembers, getTaskById } = useDataStore();
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
 
   // Group members by status
-  const groupedMembers = members.reduce((acc, member) => {
+  const groupedMembers = teamMembers.reduce((acc, member) => {
     if (!acc[member.status]) acc[member.status] = [];
     acc[member.status].push(member);
     return acc;
-  }, {} as Record<string, typeof members>);
+  }, {} as Record<string, typeof teamMembers>);
 
   const statusOrder = ['working', 'review', 'done', 'waiting', 'absent'];
 
@@ -70,7 +74,7 @@ export function TeamView() {
 
       {/* Team Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {members
+        {teamMembers
           .sort((a, b) => {
             const order = { working: 0, review: 1, done: 2, waiting: 3, absent: 4 };
             return order[a.status] - order[b.status];
@@ -129,10 +133,19 @@ export function TeamView() {
                     </div>
 
                     {task && (
-                      <div className="mt-3 p-2 rounded-lg bg-gray-50 dark:bg-dark-surface-hover">
-                        <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-                          현재 작업
-                        </p>
+                      <div
+                        className="mt-3 p-2 rounded-lg bg-gray-50 dark:bg-dark-surface-hover cursor-pointer group transition-colors hover:bg-gray-100 dark:hover:bg-dark-bg"
+                        onClick={() => setEditingTask(task)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+                            현재 작업
+                          </p>
+                          <Edit2
+                            size={12}
+                            className="text-light-text-secondary dark:text-dark-text-secondary opacity-0 group-hover:opacity-100 transition-opacity"
+                          />
+                        </div>
                         <p className="text-sm font-medium text-light-text dark:text-dark-text truncate">
                           {task.title}
                         </p>
@@ -144,6 +157,22 @@ export function TeamView() {
             );
           })}
       </div>
+
+      {/* Edit Task Modal */}
+      <Modal
+        isOpen={!!editingTask}
+        onClose={() => setEditingTask(null)}
+        title="태스크 수정"
+        size="lg"
+      >
+        {editingTask && (
+          <TaskForm
+            task={editingTask}
+            onSubmit={() => setEditingTask(null)}
+            onCancel={() => setEditingTask(null)}
+          />
+        )}
+      </Modal>
     </motion.div>
   );
 }

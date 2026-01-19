@@ -8,6 +8,7 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
+  CheckSquare,
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 import { useAppStore } from '@/stores/useAppStore';
@@ -22,6 +23,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { id: 'dashboard', label: '대시보드', icon: <LayoutDashboard size={20} /> },
   { id: 'timeline', label: '타임라인', icon: <GanttChart size={20} /> },
+  { id: 'tasks', label: '태스크', icon: <CheckSquare size={20} /> },
   { id: 'calendar', label: '캘린더', icon: <Calendar size={20} /> },
   { id: 'team', label: '팀 현황', icon: <Users size={20} /> },
   { id: 'nodemap', label: '노드맵', icon: <GitBranch size={20} /> },
