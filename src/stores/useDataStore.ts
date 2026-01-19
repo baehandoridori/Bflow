@@ -1,7 +1,45 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { Task, Episode, TeamMember, Project } from '@/types';
+import type { Task, Episode, TeamMember, Project, CalendarEvent } from '@/types';
 import { sampleProjects, sampleEpisodes, sampleTeamMembers, sampleTasks } from '@/data/sampleData';
+
+// Sample calendar events
+const sampleCalendarEvents: CalendarEvent[] = [
+  {
+    id: 'event-1',
+    title: '팀 미팅',
+    type: 'meeting',
+    startDate: '2025-01-20',
+    endDate: '2025-01-20',
+    color: '#3B82F6',
+  },
+  {
+    id: 'event-2',
+    title: 'ep.15 마감',
+    type: 'deadline',
+    startDate: '2025-02-15',
+    endDate: '2025-02-15',
+    color: '#EF4444',
+    relatedEpisodeId: 'ep-15',
+  },
+  {
+    id: 'event-3',
+    title: '설 연휴',
+    type: 'holiday',
+    startDate: '2025-01-28',
+    endDate: '2025-01-30',
+    color: '#10B981',
+  },
+  {
+    id: 'event-4',
+    title: 'ep.16 마감',
+    type: 'deadline',
+    startDate: '2025-02-28',
+    endDate: '2025-02-28',
+    color: '#EF4444',
+    relatedEpisodeId: 'ep-16',
+  },
+];
 
 interface DataState {
   // Data
@@ -9,6 +47,7 @@ interface DataState {
   episodes: Episode[];
   teamMembers: TeamMember[];
   tasks: Task[];
+  calendarEvents: CalendarEvent[];
 
   // Task CRUD
   addTask: (task: Omit<Task, 'id' | 'createdAt' | 'updatedAt'>) => Task;
@@ -24,9 +63,19 @@ interface DataState {
   deleteEpisode: (id: string) => void;
   getEpisodeById: (id: string) => Episode | undefined;
 
+  // Calendar Event CRUD
+  addCalendarEvent: (event: Omit<CalendarEvent, 'id'>) => CalendarEvent;
+  updateCalendarEvent: (id: string, updates: Partial<Omit<CalendarEvent, 'id'>>) => void;
+  deleteCalendarEvent: (id: string) => void;
+  getCalendarEventById: (id: string) => CalendarEvent | undefined;
+  getCalendarEventsByDateRange: (start: Date, end: Date) => CalendarEvent[];
+
   // Team Member actions
   updateTeamMember: (id: string, updates: Partial<Omit<TeamMember, 'id'>>) => void;
   getTeamMemberById: (id: string) => TeamMember | undefined;
+
+  // Project helpers
+  getProjectById: (id: string) => Project | undefined;
 
   // Reset to sample data
   resetData: () => void;
@@ -42,6 +91,7 @@ export const useDataStore = create<DataState>()(
       episodes: sampleEpisodes,
       teamMembers: sampleTeamMembers,
       tasks: sampleTasks,
+      calendarEvents: sampleCalendarEvents,
 
       // Task CRUD
       addTask: (taskData) => {
@@ -193,6 +243,49 @@ export const useDataStore = create<DataState>()(
 
       getTeamMemberById: (id) => get().teamMembers.find((tm) => tm.id === id),
 
+      // Calendar Event CRUD
+      addCalendarEvent: (eventData) => {
+        const newEvent: CalendarEvent = {
+          ...eventData,
+          id: generateId('event'),
+        };
+
+        set((state) => ({
+          calendarEvents: [...state.calendarEvents, newEvent],
+        }));
+
+        return newEvent;
+      },
+
+      updateCalendarEvent: (id, updates) => {
+        set((state) => ({
+          calendarEvents: state.calendarEvents.map((event) =>
+            event.id === id ? { ...event, ...updates } : event
+          ),
+        }));
+      },
+
+      deleteCalendarEvent: (id) => {
+        set((state) => ({
+          calendarEvents: state.calendarEvents.filter((event) => event.id !== id),
+        }));
+      },
+
+      getCalendarEventById: (id) => get().calendarEvents.find((event) => event.id === id),
+
+      getCalendarEventsByDateRange: (start, end) => {
+        const startTime = start.getTime();
+        const endTime = end.getTime();
+        return get().calendarEvents.filter((event) => {
+          const eventStart = new Date(event.startDate).getTime();
+          const eventEnd = new Date(event.endDate).getTime();
+          return eventStart <= endTime && eventEnd >= startTime;
+        });
+      },
+
+      // Project helpers
+      getProjectById: (id) => get().projects.find((proj) => proj.id === id),
+
       // Reset data
       resetData: () => {
         set({
@@ -200,6 +293,7 @@ export const useDataStore = create<DataState>()(
           episodes: sampleEpisodes,
           teamMembers: sampleTeamMembers,
           tasks: sampleTasks,
+          calendarEvents: sampleCalendarEvents,
         });
       },
     }),
