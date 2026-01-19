@@ -7,6 +7,7 @@ import {
   CalendarView,
   NodeMapView,
   TasksView,
+  Settings,
 } from '@/views';
 
 function App() {
@@ -26,6 +27,8 @@ function App() {
         return <TeamView />;
       case 'nodemap':
         return <NodeMapView />;
+      case 'settings':
+        return <Settings />;
       default:
         return <Dashboard />;
     }

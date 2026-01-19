@@ -5,7 +5,7 @@ import {
   Users,
   GitBranch,
   GanttChart,
-  Settings,
+  Settings as SettingsIcon,
   ChevronLeft,
   ChevronRight,
   CheckSquare,
@@ -113,13 +113,16 @@ export function Sidebar() {
       {/* Settings */}
       <div className="p-2 border-t border-light-border dark:border-dark-border">
         <button
+          onClick={() => setCurrentView('settings')}
           className={cn(
             'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors',
             'text-light-text-secondary dark:text-dark-text-secondary',
-            'hover:bg-gray-100 dark:hover:bg-dark-surface-hover'
+            currentView === 'settings'
+              ? 'bg-brand-primary/10 text-brand-primary dark:text-brand-primary'
+              : 'hover:bg-gray-100 dark:hover:bg-dark-surface-hover'
           )}
         >
-          <Settings size={20} />
+          <SettingsIcon size={20} />
           {!sidebarCollapsed && <span className="text-sm font-medium">설정</span>}
         </button>
       </div>

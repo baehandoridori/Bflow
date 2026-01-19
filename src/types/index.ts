@@ -123,4 +123,4 @@ export interface AppConfig {
 }
 
 // 뷰 타입
-export type ViewType = 'dashboard' | 'timeline' | 'calendar' | 'team' | 'nodemap' | 'tasks';
+export type ViewType = 'dashboard' | 'timeline' | 'calendar' | 'team' | 'nodemap' | 'tasks' | 'settings';
