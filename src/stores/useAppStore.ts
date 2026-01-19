@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { ViewType, WidgetSize } from '@/types';
+import type { ViewType } from '@/types';
+import type { Layouts } from 'react-grid-layout';
 
 interface AppState {
   // Theme & Settings
@@ -11,8 +12,8 @@ interface AppState {
   // Current View
   currentView: ViewType;
 
-  // Widget Layout
-  widgetLayout: Record<string, WidgetSize>;
+  // Widget Layout (react-grid-layout)
+  widgetLayout: Layouts | null;
 
   // Sidebar
   sidebarCollapsed: boolean;
@@ -23,7 +24,7 @@ interface AppState {
   setAccentColor: (color: string) => void;
   setCurrentView: (view: ViewType) => void;
   setCalendarView: (view: 'weekly' | 'monthly') => void;
-  setWidgetSize: (widgetId: string, size: WidgetSize) => void;
+  setWidgetLayout: (layout: Layouts) => void;
   toggleSidebar: () => void;
 }
 
@@ -35,13 +36,7 @@ export const useAppStore = create<AppState>()(
       accentColor: '#F0E68C',
       calendarView: 'weekly',
       currentView: 'dashboard',
-      widgetLayout: {
-        summary: { w: 2, h: 1 },
-        gantt: { w: 4, h: 2 },
-        team: { w: 2, h: 2 },
-        tasks: { w: 2, h: 2 },
-        calendar: { w: 2, h: 2 },
-      },
+      widgetLayout: null, // Will use default from Dashboard component
       sidebarCollapsed: false,
 
       // Actions
@@ -51,10 +46,7 @@ export const useAppStore = create<AppState>()(
       setAccentColor: (accentColor) => set({ accentColor }),
       setCurrentView: (currentView) => set({ currentView }),
       setCalendarView: (calendarView) => set({ calendarView }),
-      setWidgetSize: (widgetId, size) =>
-        set((state) => ({
-          widgetLayout: { ...state.widgetLayout, [widgetId]: size },
-        })),
+      setWidgetLayout: (widgetLayout) => set({ widgetLayout }),
       toggleSidebar: () =>
         set((state) => ({ sidebarCollapsed: !state.sidebarCollapsed })),
     }),
