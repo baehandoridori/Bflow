@@ -108,6 +108,7 @@ interface TooltipState {
   stageIndex: number;
   x: number;
   y: number;
+  showBelow?: boolean;
 }
 
 interface EpisodeRowProps {
@@ -123,17 +124,20 @@ function EpisodeRow({ episode, projectColor, activeTooltip, setActiveTooltip }: 
   const handleMouseEnter = (stageIndex: number, e: React.MouseEvent) => {
     const rect = e.currentTarget.getBoundingClientRect();
 
-    // Calculate position
+    // Calculate position - center of the hovered element
     let x = rect.left + rect.width / 2;
     let y = rect.top;
 
-    // Adjust if too close to edges
+    // Adjust horizontal position if too close to edges
     const tooltipWidth = 224; // w-56 = 14rem = 224px
-    if (x - tooltipWidth / 2 < 10) {
-      x = tooltipWidth / 2 + 10;
-    }
-    if (x + tooltipWidth / 2 > window.innerWidth - 10) {
-      x = window.innerWidth - tooltipWidth / 2 - 10;
+    const minX = tooltipWidth / 2 + 10;
+    const maxX = window.innerWidth - tooltipWidth / 2 - 10;
+    x = Math.max(minX, Math.min(maxX, x));
+
+    // If tooltip would go above viewport, show below instead
+    const tooltipHeight = 200; // approximate height
+    if (y < tooltipHeight + 20) {
+      y = rect.bottom + 10; // Show below
     }
 
     setActiveTooltip({
@@ -141,6 +145,7 @@ function EpisodeRow({ episode, projectColor, activeTooltip, setActiveTooltip }: 
       stageIndex,
       x,
       y,
+      showBelow: y > rect.top, // Flag to indicate if showing below
     });
   };
 
@@ -301,12 +306,14 @@ export function GanttWidget() {
             className="fixed z-[100] pointer-events-none"
             style={{
               left: activeTooltip.x,
-              top: activeTooltip.y - 10,
-              transform: 'translate(-50%, -100%)',
+              top: activeTooltip.showBelow ? activeTooltip.y : activeTooltip.y - 10,
+              transform: activeTooltip.showBelow
+                ? 'translate(-50%, 0)'
+                : 'translate(-50%, -100%)',
             }}
           >
             <motion.div
-              initial={{ opacity: 0, y: 5 }}
+              initial={{ opacity: 0, y: activeTooltip.showBelow ? -5 : 5 }}
               animate={{ opacity: 1, y: 0 }}
               className="bg-gray-900 rounded-lg shadow-xl border border-gray-700"
             >
@@ -320,9 +327,15 @@ export function GanttWidget() {
             </motion.div>
             {/* Arrow */}
             <div
-              className="absolute left-1/2 -translate-x-1/2 top-full -mt-1"
+              className={cn(
+                "absolute left-1/2 -translate-x-1/2",
+                activeTooltip.showBelow ? "bottom-full mb-[-1px]" : "top-full -mt-1"
+              )}
             >
-              <div className="border-8 border-transparent border-t-gray-900" />
+              <div className={cn(
+                "border-8 border-transparent",
+                activeTooltip.showBelow ? "border-b-gray-900" : "border-t-gray-900"
+              )} />
             </div>
           </div>
         )}

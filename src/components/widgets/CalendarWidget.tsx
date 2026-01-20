@@ -40,64 +40,67 @@ export function CalendarWidget() {
 
   return (
     <Widget id="calendar" title="캘린더" icon={<Calendar size={18} />}>
-      <div className="space-y-3 overflow-auto">
+      <div className="h-full flex flex-col">
         {/* Header */}
-        <div className="flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center justify-between mb-2">
           <button
             onClick={prevMonth}
             className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
           >
-            <ChevronLeft size={16} />
+            <ChevronLeft size={14} />
           </button>
-          <span className="font-medium text-sm">
+          <span className="font-medium text-xs">
             {format(currentDate, 'yyyy년 M월', { locale: ko })}
           </span>
           <button
             onClick={nextMonth}
             className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
           >
-            <ChevronRight size={16} />
+            <ChevronRight size={14} />
           </button>
         </div>
 
         {/* Weekday headers */}
-        <div className="grid grid-cols-7 gap-1 text-center text-xs text-light-text-secondary dark:text-dark-text-secondary flex-shrink-0">
-          {WEEKDAYS.map((day) => (
-            <div key={day} className="py-0.5">
+        <div className="grid grid-cols-7 mb-1">
+          {WEEKDAYS.map((day, i) => (
+            <div
+              key={day}
+              className={cn(
+                "text-center text-[10px] py-0.5",
+                i === 0 && "text-red-400",
+                i === 6 && "text-blue-400",
+                i !== 0 && i !== 6 && "text-light-text-secondary dark:text-dark-text-secondary"
+              )}
+            >
               {day}
             </div>
           ))}
         </div>
 
-        {/* Calendar grid */}
-        <div className="grid grid-cols-7 gap-0.5 flex-shrink-0">
-          {days.map((day) => {
+        {/* Calendar grid - fills remaining space */}
+        <div className="flex-1 grid grid-cols-7 auto-rows-fr gap-px">
+          {days.map((day, index) => {
             const dueDates = getDueDatesForDay(day);
             const isCurrentMonth = isSameMonth(day, currentDate);
             const isCurrentDay = isToday(day);
+            const dayOfWeek = index % 7;
 
             return (
               <div
                 key={day.toISOString()}
                 className={cn(
-                  'aspect-square p-0.5 text-xs rounded relative',
-                  'flex flex-col items-center justify-center',
-                  !isCurrentMonth && 'text-gray-300 dark:text-gray-600',
-                  isCurrentDay &&
-                    'bg-brand-primary/20 text-brand-primary font-bold',
-                  dueDates.length > 0 && 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700'
+                  'flex items-center justify-center relative text-[10px] rounded-sm',
+                  !isCurrentMonth && 'text-gray-400 dark:text-gray-600',
+                  isCurrentMonth && dayOfWeek === 0 && 'text-red-400',
+                  isCurrentMonth && dayOfWeek === 6 && 'text-blue-400',
+                  isCurrentDay && 'bg-brand-primary text-dark-bg font-bold',
+                  dueDates.length > 0 && !isCurrentDay && 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700'
                 )}
               >
-                <span className="text-[10px]">{format(day, 'd')}</span>
+                {format(day, 'd')}
                 {dueDates.length > 0 && (
-                  <div className="absolute bottom-0 flex gap-0.5">
-                    {dueDates.slice(0, 2).map((ep) => (
-                      <div
-                        key={ep.id}
-                        className="w-1 h-1 rounded-full bg-red-500"
-                        title={ep.name}
-                      />
-                    ))}
+                  <div className="absolute bottom-0 left-1/2 -translate-x-1/2">
+                    <div className="w-1 h-1 rounded-full bg-red-500" />
                   </div>
                 )}
               </div>
