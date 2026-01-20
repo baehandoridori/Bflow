@@ -40,16 +40,16 @@ export function CalendarWidget() {
 
   return (
     <Widget id="calendar" title="캘린더" icon={<Calendar size={18} />}>
-      <div className="space-y-3">
+      <div className="space-y-3 overflow-auto">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-shrink-0">
           <button
             onClick={prevMonth}
             className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
           >
             <ChevronLeft size={16} />
           </button>
-          <span className="font-medium">
+          <span className="font-medium text-sm">
             {format(currentDate, 'yyyy년 M월', { locale: ko })}
           </span>
           <button
@@ -61,16 +61,16 @@ export function CalendarWidget() {
         </div>
 
         {/* Weekday headers */}
-        <div className="grid grid-cols-7 gap-1 text-center text-xs text-light-text-secondary dark:text-dark-text-secondary">
+        <div className="grid grid-cols-7 gap-1 text-center text-xs text-light-text-secondary dark:text-dark-text-secondary flex-shrink-0">
           {WEEKDAYS.map((day) => (
-            <div key={day} className="py-1">
+            <div key={day} className="py-0.5">
               {day}
             </div>
           ))}
         </div>
 
         {/* Calendar grid */}
-        <div className="grid grid-cols-7 gap-1">
+        <div className="grid grid-cols-7 gap-0.5 flex-shrink-0">
           {days.map((day) => {
             const dueDates = getDueDatesForDay(day);
             const isCurrentMonth = isSameMonth(day, currentDate);
@@ -80,18 +80,18 @@ export function CalendarWidget() {
               <div
                 key={day.toISOString()}
                 className={cn(
-                  'aspect-square p-1 text-xs rounded relative',
-                  'flex flex-col items-center',
+                  'aspect-square p-0.5 text-xs rounded relative',
+                  'flex flex-col items-center justify-center',
                   !isCurrentMonth && 'text-gray-300 dark:text-gray-600',
                   isCurrentDay &&
                     'bg-brand-primary/20 text-brand-primary font-bold',
                   dueDates.length > 0 && 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700'
                 )}
               >
-                <span>{format(day, 'd')}</span>
+                <span className="text-[10px]">{format(day, 'd')}</span>
                 {dueDates.length > 0 && (
-                  <div className="absolute bottom-1 flex gap-0.5">
-                    {dueDates.slice(0, 3).map((ep) => (
+                  <div className="absolute bottom-0 flex gap-0.5">
+                    {dueDates.slice(0, 2).map((ep) => (
                       <div
                         key={ep.id}
                         className="w-1 h-1 rounded-full bg-red-500"
@@ -103,30 +103,6 @@ export function CalendarWidget() {
               </div>
             );
           })}
-        </div>
-
-        {/* Upcoming deadlines */}
-        <div className="border-t border-light-border dark:border-dark-border pt-2 mt-2">
-          <p className="text-xs text-light-text-secondary dark:text-dark-text-secondary mb-2">
-            다가오는 마감
-          </p>
-          <div className="space-y-1">
-            {episodes
-              .filter((ep) => new Date(ep.dueDate) >= new Date())
-              .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
-              .slice(0, 3)
-              .map((ep) => (
-                <div
-                  key={ep.id}
-                  className="flex items-center justify-between text-xs"
-                >
-                  <span className="truncate">{ep.name}</span>
-                  <span className="text-light-text-secondary dark:text-dark-text-secondary ml-2">
-                    {format(new Date(ep.dueDate), 'M/d')}
-                  </span>
-                </div>
-              ))}
-          </div>
         </div>
       </div>
     </Widget>

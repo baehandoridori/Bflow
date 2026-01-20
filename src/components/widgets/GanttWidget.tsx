@@ -1,3 +1,4 @@
+import { useState, useRef } from 'react';
 import { GanttChart, Check, Clock, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Widget } from './Widget';
@@ -26,14 +27,14 @@ function MilestoneTooltip({
   const stageInfo = PIPELINE_STAGE_INFO[stage];
 
   return (
-    <div className="w-64 p-3 text-left">
+    <div className="w-56 p-3 text-left">
       {/* Header */}
       <div className="flex items-center gap-2 mb-2">
         <div
-          className="w-3 h-3 rounded-full"
+          className="w-3 h-3 rounded-full flex-shrink-0"
           style={{ backgroundColor: stageInfo.color }}
         />
-        <span className="font-semibold text-white">{stageInfo.label}</span>
+        <span className="font-semibold text-white text-sm">{stageInfo.label}</span>
         {isCompleted && (
           <span className="ml-auto flex items-center gap-1 text-xs text-green-400">
             <Check size={12} />
@@ -53,9 +54,6 @@ function MilestoneTooltip({
           </span>
         )}
       </div>
-
-      {/* Description */}
-      <p className="text-xs text-gray-400 mb-3">{stageInfo.description}</p>
 
       {/* Episode */}
       <div className="text-xs text-gray-500 mb-2">
@@ -105,13 +103,50 @@ function MilestoneTooltip({
   );
 }
 
+interface TooltipState {
+  episodeId: string;
+  stageIndex: number;
+  x: number;
+  y: number;
+}
+
 interface EpisodeRowProps {
   episode: Episode;
   projectColor: string;
+  activeTooltip: TooltipState | null;
+  setActiveTooltip: (tooltip: TooltipState | null) => void;
 }
 
-function EpisodeRow({ episode, projectColor }: EpisodeRowProps) {
+function EpisodeRow({ episode, projectColor, activeTooltip, setActiveTooltip }: EpisodeRowProps) {
   const currentStageIndex = PIPELINE_STAGES.indexOf(episode.currentStage);
+
+  const handleMouseEnter = (stageIndex: number, e: React.MouseEvent) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+
+    // Calculate position
+    let x = rect.left + rect.width / 2;
+    let y = rect.top;
+
+    // Adjust if too close to edges
+    const tooltipWidth = 224; // w-56 = 14rem = 224px
+    if (x - tooltipWidth / 2 < 10) {
+      x = tooltipWidth / 2 + 10;
+    }
+    if (x + tooltipWidth / 2 > window.innerWidth - 10) {
+      x = window.innerWidth - tooltipWidth / 2 - 10;
+    }
+
+    setActiveTooltip({
+      episodeId: episode.id,
+      stageIndex,
+      x,
+      y,
+    });
+  };
+
+  const handleMouseLeave = () => {
+    setActiveTooltip(null);
+  };
 
   return (
     <div className="py-3 border-b border-light-border dark:border-dark-border last:border-b-0">
@@ -152,14 +187,20 @@ function EpisodeRow({ episode, projectColor }: EpisodeRowProps) {
           const milestone = episode.milestones.find((m) => m.stage === stage);
           const isCompleted = index < currentStageIndex;
           const isCurrent = index === currentStageIndex;
+          const isActive = activeTooltip?.episodeId === episode.id && activeTooltip?.stageIndex === index;
 
           return (
-            <div key={stage} className="flex-1 group relative">
+            <div
+              key={stage}
+              className="flex-1 relative"
+              onMouseEnter={(e) => handleMouseEnter(index, e)}
+              onMouseLeave={handleMouseLeave}
+            >
               {/* Stage Bar */}
               <div
                 className={cn(
                   'h-6 rounded-sm transition-all duration-300 cursor-pointer',
-                  'hover:ring-2 hover:ring-white/30 hover:z-10'
+                  isActive && 'ring-2 ring-white/50 z-10'
                 )}
                 style={{
                   backgroundColor: isCompleted
@@ -186,27 +227,6 @@ function EpisodeRow({ episode, projectColor }: EpisodeRowProps) {
                     />
                   </div>
                 )}
-              </div>
-
-              {/* Tooltip on Hover */}
-              <div className={cn(
-                'absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50',
-                'opacity-0 invisible group-hover:opacity-100 group-hover:visible',
-                'transition-all duration-200 pointer-events-none'
-              )}>
-                <div className="bg-gray-900 rounded-lg shadow-xl border border-gray-700">
-                  <MilestoneTooltip
-                    stage={stage}
-                    milestone={milestone}
-                    isCompleted={isCompleted}
-                    isCurrent={isCurrent}
-                    episodeName={episode.name}
-                  />
-                </div>
-                {/* Arrow */}
-                <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1">
-                  <div className="border-8 border-transparent border-t-gray-900" />
-                </div>
               </div>
             </div>
           );
@@ -238,15 +258,30 @@ function EpisodeRow({ episode, projectColor }: EpisodeRowProps) {
 
 export function GanttWidget() {
   const { episodes, getProjectById } = useProjectStore();
+  const [activeTooltip, setActiveTooltip] = useState<TooltipState | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const sortedEpisodes = [...episodes].sort((a, b) => {
-    // Sort by progress descending
     return b.progress - a.progress;
   });
 
+  // Find active episode and stage for tooltip
+  const activeEpisode = activeTooltip
+    ? episodes.find(e => e.id === activeTooltip.episodeId)
+    : null;
+  const activeStage = activeTooltip
+    ? PIPELINE_STAGES[activeTooltip.stageIndex]
+    : null;
+  const activeMilestone = activeEpisode && activeStage
+    ? activeEpisode.milestones.find(m => m.stage === activeStage)
+    : undefined;
+  const activeStageIndex = activeEpisode
+    ? PIPELINE_STAGES.indexOf(activeEpisode.currentStage)
+    : 0;
+
   return (
     <Widget id="gantt" title="프로젝트 타임라인" icon={<GanttChart size={18} />}>
-      <div className="space-y-0">
+      <div ref={containerRef} className="space-y-0 relative">
         {sortedEpisodes.map((episode) => {
           const project = getProjectById(episode.projectId);
           return (
@@ -254,9 +289,43 @@ export function GanttWidget() {
               key={episode.id}
               episode={episode}
               projectColor={project?.color || '#6B7280'}
+              activeTooltip={activeTooltip}
+              setActiveTooltip={setActiveTooltip}
             />
           );
         })}
+
+        {/* Global Tooltip - rendered once at container level */}
+        {activeTooltip && activeEpisode && activeStage && (
+          <div
+            className="fixed z-[100] pointer-events-none"
+            style={{
+              left: activeTooltip.x,
+              top: activeTooltip.y - 10,
+              transform: 'translate(-50%, -100%)',
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 5 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-gray-900 rounded-lg shadow-xl border border-gray-700"
+            >
+              <MilestoneTooltip
+                stage={activeStage}
+                milestone={activeMilestone}
+                isCompleted={activeTooltip.stageIndex < activeStageIndex}
+                isCurrent={activeTooltip.stageIndex === activeStageIndex}
+                episodeName={activeEpisode.name}
+              />
+            </motion.div>
+            {/* Arrow */}
+            <div
+              className="absolute left-1/2 -translate-x-1/2 top-full -mt-1"
+            >
+              <div className="border-8 border-transparent border-t-gray-900" />
+            </div>
+          </div>
+        )}
       </div>
     </Widget>
   );
