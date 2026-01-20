@@ -47,6 +47,7 @@ export interface Episode {
   number: number;
   progress: number;
   currentStage: PipelineStage;
+  startDate: string;
   dueDate: string;
   milestones: Milestone[];
   taskIds: string[];

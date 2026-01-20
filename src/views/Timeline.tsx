@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Check, Clock, AlertCircle } from 'lucide-react';
+import { Check, Clock, AlertCircle, LayoutGrid, Calendar } from 'lucide-react';
 import { Card, CardHeader, CardContent, ProgressBar, Badge } from '@/components/ui';
+import { GanttChart } from '@/components/gantt';
 import { useProjectStore } from '@/stores/useProjectStore';
 import { PIPELINE_STAGES, PIPELINE_STAGE_INFO } from '@/constants/pipeline';
 import { formatDate, formatDDay } from '@/utils/date';
@@ -97,7 +99,10 @@ function MilestoneTooltip({
   );
 }
 
+type ViewMode = 'gantt' | 'pipeline';
+
 export function Timeline() {
+  const [viewMode, setViewMode] = useState<ViewMode>('gantt');
   const { episodes, getProjectById } = useProjectStore();
 
   const sortedEpisodes = [...episodes].sort((a, b) => {
@@ -111,8 +116,46 @@ export function Timeline() {
       transition={{ duration: 0.3 }}
       className="space-y-6"
     >
-      {/* Pipeline Legend */}
-      <Card>
+      {/* 뷰 전환 탭 */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setViewMode('gantt')}
+          className={cn(
+            'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+            viewMode === 'gantt'
+              ? 'bg-brand-primary text-dark-bg'
+              : 'bg-light-surface dark:bg-dark-surface text-light-text-secondary dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-gray-800'
+          )}
+        >
+          <Calendar size={16} />
+          간트 차트
+        </button>
+        <button
+          onClick={() => setViewMode('pipeline')}
+          className={cn(
+            'flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors',
+            viewMode === 'pipeline'
+              ? 'bg-brand-primary text-dark-bg'
+              : 'bg-light-surface dark:bg-dark-surface text-light-text-secondary dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-gray-800'
+          )}
+        >
+          <LayoutGrid size={16} />
+          파이프라인
+        </button>
+      </div>
+
+      {/* 간트 차트 뷰 */}
+      {viewMode === 'gantt' && (
+        <div className="h-[calc(100vh-220px)]">
+          <GanttChart />
+        </div>
+      )}
+
+      {/* 파이프라인 뷰 */}
+      {viewMode === 'pipeline' && (
+        <>
+          {/* Pipeline Legend */}
+          <Card>
         <CardContent className="p-4">
           <h3 className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-3">
             파이프라인 단계
@@ -293,6 +336,8 @@ export function Timeline() {
           );
         })}
       </div>
+        </>
+      )}
     </motion.div>
   );
 }

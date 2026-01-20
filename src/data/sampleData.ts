@@ -23,6 +23,7 @@ export const sampleEpisodes: Episode[] = [
     number: 15,
     progress: 75,
     currentStage: '애니메이션',
+    startDate: '2025-01-01',
     dueDate: '2025-02-15',
     milestones: [
       { stage: '원정', completedDate: '2025-01-01', note: '기획 완료', isCurrent: false },
@@ -47,6 +48,7 @@ export const sampleEpisodes: Episode[] = [
     number: 16,
     progress: 45,
     currentStage: '릴',
+    startDate: '2025-01-10',
     dueDate: '2025-02-28',
     milestones: [
       { stage: '원정', completedDate: '2025-01-10', note: '기획 완료', isCurrent: false },
@@ -71,6 +73,7 @@ export const sampleEpisodes: Episode[] = [
     number: 17,
     progress: 20,
     currentStage: '가녹음',
+    startDate: '2025-01-15',
     dueDate: '2025-03-15',
     milestones: [
       { stage: '원정', completedDate: '2025-01-15', note: '기획 완료', isCurrent: false },
@@ -95,6 +98,7 @@ export const sampleEpisodes: Episode[] = [
     number: 1,
     progress: 10,
     currentStage: '대본',
+    startDate: '2025-01-16',
     dueDate: '2025-04-01',
     milestones: [
       { stage: '원정', completedDate: '2025-01-16', note: '기획 미팅', isCurrent: false },

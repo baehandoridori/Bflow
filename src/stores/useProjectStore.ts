@@ -16,6 +16,7 @@ interface ProjectState {
   getProjectById: (id: string) => Project | undefined;
   getEpisodeById: (id: string) => Episode | undefined;
   getEpisodesByProjectId: (projectId: string) => Episode[];
+  updateEpisode: (id: string, updates: Partial<Episode>) => void;
 }
 
 export const useProjectStore = create<ProjectState>((set, get) => ({
@@ -33,4 +34,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   getEpisodeById: (id) => get().episodes.find((e) => e.id === id),
   getEpisodesByProjectId: (projectId) =>
     get().episodes.filter((e) => e.projectId === projectId),
+  updateEpisode: (id, updates) =>
+    set((state) => ({
+      episodes: state.episodes.map((ep) =>
+        ep.id === id ? { ...ep, ...updates } : ep
+      ),
+    })),
 }));
