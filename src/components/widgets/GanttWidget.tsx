@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { GanttChart, Check, Clock, AlertCircle } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Widget } from './Widget';
@@ -300,10 +301,10 @@ export function GanttWidget() {
           );
         })}
 
-        {/* Global Tooltip - rendered once at container level */}
-        {activeTooltip && activeEpisode && activeStage && (
+        {/* Global Tooltip - rendered via portal to avoid CSS containment issues */}
+        {activeTooltip && activeEpisode && activeStage && createPortal(
           <div
-            className="fixed z-[100] pointer-events-none"
+            className="fixed z-[9999] pointer-events-none"
             style={{
               left: activeTooltip.x,
               top: activeTooltip.showBelow ? activeTooltip.y : activeTooltip.y - 10,
@@ -337,7 +338,8 @@ export function GanttWidget() {
                 activeTooltip.showBelow ? "border-b-gray-900" : "border-t-gray-900"
               )} />
             </div>
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     </Widget>
