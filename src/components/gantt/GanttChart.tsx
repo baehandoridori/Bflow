@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion } from 'framer-motion';
-import { Calendar } from 'lucide-react';
+import { Calendar, ZoomIn, ZoomOut, Maximize2 } from 'lucide-react';
 import {
   format,
   differenceInDays,
@@ -132,12 +132,43 @@ function GanttBar({
 
 export function GanttChart() {
   const { episodes, getProjectById, updateEpisode } = useProjectStore();
-  const containerRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [dragState, setDragState] = useState<DragState | null>(null);
   const [previewDates, setPreviewDates] = useState<Record<string, { startDate: string; dueDate: string }>>({});
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  const [dayWidth, setDayWidth] = useState(30); // 하루당 픽셀 너비
 
-  const DAY_WIDTH = 30; // 하루당 픽셀 너비
+  const MIN_DAY_WIDTH = 15;
+  const MAX_DAY_WIDTH = 60;
+  const DEFAULT_DAY_WIDTH = 30;
+
+  // 줌 핸들러
+  const handleZoom = useCallback((delta: number) => {
+    setDayWidth((prev) => Math.max(MIN_DAY_WIDTH, Math.min(MAX_DAY_WIDTH, prev + delta)));
+  }, []);
+
+  // 줌 리셋
+  const handleResetZoom = useCallback(() => {
+    setDayWidth(DEFAULT_DAY_WIDTH);
+  }, []);
+
+  // 마우스 휠 줌
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        handleZoom(e.deltaY > 0 ? -3 : 3);
+      }
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: false });
+    return () => container.removeEventListener('wheel', handleWheel);
+  }, [handleZoom]);
+
+  const DAY_WIDTH = dayWidth;
 
   const sortedEpisodes = [...episodes].sort(
     (a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()
@@ -255,12 +286,42 @@ export function GanttChart() {
           <Calendar size={18} className="text-light-text-secondary dark:text-dark-text-secondary" />
           <h2 className="font-semibold text-light-text dark:text-dark-text">간트 차트</h2>
         </div>
-        <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
-          드래그하여 일정 조절 | 양쪽 끝을 드래그하여 기간 조절
+        <div className="flex items-center gap-4">
+          <span className="text-xs text-light-text-secondary dark:text-dark-text-secondary">
+            Ctrl+휠로 확대/축소
+          </span>
+          {/* 줌 컨트롤 */}
+          <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+            <button
+              onClick={() => handleZoom(-5)}
+              className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+              title="축소"
+            >
+              <ZoomOut size={16} />
+            </button>
+            <span className="text-xs font-medium w-12 text-center">
+              {Math.round((dayWidth / DEFAULT_DAY_WIDTH) * 100)}%
+            </span>
+            <button
+              onClick={() => handleZoom(5)}
+              className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+              title="확대"
+            >
+              <ZoomIn size={16} />
+            </button>
+            <div className="w-px h-4 bg-gray-300 dark:bg-gray-600 mx-1" />
+            <button
+              onClick={handleResetZoom}
+              className="p-1.5 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+              title="초기화"
+            >
+              <Maximize2 size={16} />
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto" ref={containerRef}>
+      <div className="flex-1 overflow-auto" ref={scrollContainerRef}>
         <div style={{ minWidth: `${totalDays * DAY_WIDTH + 200}px` }}>
           {/* 날짜 헤더 */}
           <div className="flex border-b border-light-border dark:border-dark-border sticky top-0 bg-light-surface dark:bg-dark-surface z-10">
