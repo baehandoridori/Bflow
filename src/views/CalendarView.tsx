@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, LayoutGrid } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Plus, Calendar as CalendarIcon, LayoutGrid, Eye, EyeOff } from 'lucide-react';
 import {
   format,
   startOfMonth,
@@ -17,6 +17,8 @@ import {
   isToday,
   isWithinInterval,
   differenceInDays,
+  isBefore,
+  parseISO,
 } from 'date-fns';
 import { ko } from 'date-fns/locale';
 import { Card, Button } from '@/components/ui';
@@ -26,6 +28,10 @@ import { useDataStore } from '@/stores/useDataStore';
 import { useAppStore } from '@/stores/useAppStore';
 import { cn } from '@/utils/cn';
 import type { CalendarEvent } from '@/types';
+
+interface EventWithSlot extends CalendarEvent {
+  slot: number;
+}
 
 type ViewMode = 'monthly' | 'weekly';
 
@@ -38,7 +44,7 @@ export function CalendarView() {
   const [deleteConfirmEvent, setDeleteConfirmEvent] = useState<CalendarEvent | null>(null);
 
   const { calendarEvents, episodes, getProjectById, deleteCalendarEvent } = useDataStore();
-  const { calendarView, setCalendarView } = useAppStore();
+  const { calendarView, setCalendarView, showEpisodeDeadlines, setShowEpisodeDeadlines } = useAppStore();
 
   // Use stored view preference
   useState(() => {
@@ -78,33 +84,98 @@ export function CalendarView() {
   const allEvents = useMemo(() => {
     const events: CalendarEvent[] = [...calendarEvents];
 
-    // Add episode deadlines as events
-    episodes.forEach((ep) => {
-      const project = getProjectById(ep.projectId);
-      events.push({
-        id: `ep-deadline-${ep.id}`,
-        title: `${ep.name} 마감`,
-        type: 'deadline',
-        startDate: ep.dueDate,
-        endDate: ep.dueDate,
-        color: project?.color || '#EF4444',
-        relatedEpisodeId: ep.id,
+    // Add episode deadlines as events if enabled
+    if (showEpisodeDeadlines) {
+      episodes.forEach((ep) => {
+        const project = getProjectById(ep.projectId);
+        events.push({
+          id: `ep-deadline-${ep.id}`,
+          title: `${ep.name} 마감`,
+          type: 'deadline',
+          startDate: ep.dueDate,
+          endDate: ep.dueDate,
+          color: project?.color || '#EF4444',
+          relatedEpisodeId: ep.id,
+        });
       });
-    });
+    }
 
     return events;
-  }, [calendarEvents, episodes, getProjectById]);
+  }, [calendarEvents, episodes, getProjectById, showEpisodeDeadlines]);
 
-  // Get events for a specific day (including multi-day events)
-  const getEventsForDay = (date: Date) => {
-    return allEvents.filter((event) => {
+  // Calculate event slots for stacking (prevents overlap)
+  const calculateEventSlots = useMemo(() => {
+    // Sort events by start date, then by duration (longer events first)
+    const sortedEvents = [...allEvents].sort((a, b) => {
+      const startDiff = parseISO(a.startDate).getTime() - parseISO(b.startDate).getTime();
+      if (startDiff !== 0) return startDiff;
+      // Longer events come first
+      const aDuration = differenceInDays(parseISO(a.endDate), parseISO(a.startDate));
+      const bDuration = differenceInDays(parseISO(b.endDate), parseISO(b.startDate));
+      return bDuration - aDuration;
+    });
+
+    const eventSlots: Map<string, number> = new Map();
+    const daySlots: Map<string, Set<number>> = new Map();
+
+    sortedEvents.forEach((event) => {
+      const eventStart = parseISO(event.startDate);
+      const eventEnd = parseISO(event.endDate);
+
+      // Find which slots are occupied for all days this event spans
+      let slot = 0;
+      let slotFound = false;
+
+      while (!slotFound) {
+        slotFound = true;
+        let day = eventStart;
+
+        while (!isBefore(eventEnd, day)) {
+          const dayKey = format(day, 'yyyy-MM-dd');
+          const occupiedSlots = daySlots.get(dayKey) || new Set();
+
+          if (occupiedSlots.has(slot)) {
+            slotFound = false;
+            slot++;
+            break;
+          }
+          day = addDays(day, 1);
+        }
+      }
+
+      // Assign this slot to all days the event spans
+      let day = eventStart;
+      while (!isBefore(eventEnd, day)) {
+        const dayKey = format(day, 'yyyy-MM-dd');
+        if (!daySlots.has(dayKey)) {
+          daySlots.set(dayKey, new Set());
+        }
+        daySlots.get(dayKey)!.add(slot);
+        day = addDays(day, 1);
+      }
+
+      eventSlots.set(event.id, slot);
+    });
+
+    return eventSlots;
+  }, [allEvents]);
+
+  // Get events with slots for a specific day
+  const getEventsWithSlotsForDay = (date: Date): EventWithSlot[] => {
+    const dayEvents = allEvents.filter((event) => {
       const eventStart = new Date(event.startDate);
       const eventEnd = new Date(event.endDate);
       return isWithinInterval(date, { start: eventStart, end: eventEnd }) ||
              isSameDay(date, eventStart) ||
              isSameDay(date, eventEnd);
     });
+
+    return dayEvents.map((event) => ({
+      ...event,
+      slot: calculateEventSlots.get(event.id) || 0,
+    })).sort((a, b) => a.slot - b.slot);
   };
+
 
   // Check if event starts on this day
   const isEventStart = (event: CalendarEvent, date: Date) => {
@@ -214,6 +285,21 @@ export function CalendarView() {
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Episode Deadlines Toggle */}
+            <button
+              onClick={() => setShowEpisodeDeadlines(!showEpisodeDeadlines)}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm transition-colors',
+                showEpisodeDeadlines
+                  ? 'bg-brand-primary/20 text-brand-primary'
+                  : 'bg-gray-100 dark:bg-gray-800 text-light-text-secondary dark:text-dark-text-secondary'
+              )}
+              title={showEpisodeDeadlines ? '에피소드 마감 숨기기' : '에피소드 마감 표시'}
+            >
+              {showEpisodeDeadlines ? <Eye size={14} /> : <EyeOff size={14} />}
+              <span className="hidden sm:inline">마감일</span>
+            </button>
+
             {/* View Mode Toggle */}
             <div className="flex rounded-lg border border-light-border dark:border-dark-border overflow-hidden">
               <button
@@ -272,17 +358,20 @@ export function CalendarView() {
           {weeks.map((week, weekIndex) => (
             <div key={weekIndex} className="grid grid-cols-7 divide-x divide-light-border dark:divide-dark-border">
               {week.map((date, dayIndex) => {
-                const events = getEventsForDay(date);
+                const eventsWithSlots = getEventsWithSlotsForDay(date);
                 const isCurrentMonth = isSameMonth(date, currentDate);
                 const isCurrentDay = isToday(date);
                 const weekEnd = week[week.length - 1];
+                const maxSlots = viewMode === 'monthly' ? 3 : 10;
+                const maxSlot = Math.max(...eventsWithSlots.map(e => e.slot), -1);
+                const visibleSlotCount = Math.min(maxSlot + 1, maxSlots);
 
                 return (
                   <div
                     key={date.toISOString()}
                     onClick={() => handleDayClick(date)}
                     className={cn(
-                      'transition-colors cursor-pointer',
+                      'transition-colors cursor-pointer overflow-hidden',
                       viewMode === 'monthly' ? 'min-h-[100px]' : 'min-h-[200px]',
                       !isCurrentMonth && viewMode === 'monthly' && 'bg-gray-50 dark:bg-dark-surface-hover/50',
                       'hover:bg-gray-50 dark:hover:bg-dark-surface-hover'
@@ -302,11 +391,11 @@ export function CalendarView() {
                         {format(date, 'd')}
                       </div>
 
-                      {/* Events */}
-                      <div className="space-y-1">
-                        {events
+                      {/* Events - slot-based positioning */}
+                      <div className="relative" style={{ minHeight: visibleSlotCount * 22 }}>
+                        {eventsWithSlots
                           .filter((event) => isEventStart(event, date) || dayIndex === 0)
-                          .slice(0, viewMode === 'monthly' ? 3 : 10)
+                          .filter((event) => event.slot < maxSlots)
                           .map((event) => {
                             const span = isMultiDayEvent(event) ? getEventSpan(event, date, weekEnd) : 1;
                             const isGenerated = event.id.startsWith('ep-deadline-');
@@ -316,18 +405,20 @@ export function CalendarView() {
                                 key={event.id}
                                 onClick={(e) => handleEventClick(event, e)}
                                 className={cn(
-                                  'group relative px-1.5 py-0.5 rounded text-xs truncate transition-opacity',
+                                  'absolute left-0 right-0 group px-1.5 py-0.5 rounded text-xs truncate transition-opacity',
                                   !isGenerated && 'cursor-pointer hover:opacity-80'
                                 )}
                                 style={{
+                                  top: event.slot * 22,
                                   backgroundColor: `${event.color || '#6B7280'}20`,
                                   color: event.color || '#6B7280',
                                   borderLeft: `2px solid ${event.color || '#6B7280'}`,
                                   width: span > 1 ? `calc(${span * 100}% + ${(span - 1) * 8}px)` : '100%',
                                   zIndex: span > 1 ? 10 : 1,
+                                  height: 20,
                                 }}
                               >
-                                <span className="truncate">{event.title}</span>
+                                <span className="truncate block">{event.title}</span>
                                 {!isGenerated && (
                                   <button
                                     onClick={(e) => handleDeleteClick(event, e)}
@@ -339,9 +430,12 @@ export function CalendarView() {
                               </div>
                             );
                           })}
-                        {events.length > (viewMode === 'monthly' ? 3 : 10) && (
-                          <div className="text-xs text-light-text-secondary dark:text-dark-text-secondary px-1.5">
-                            +{events.length - (viewMode === 'monthly' ? 3 : 10)}개
+                        {maxSlot >= maxSlots && (
+                          <div
+                            className="absolute left-0 text-xs text-light-text-secondary dark:text-dark-text-secondary px-1.5"
+                            style={{ top: maxSlots * 22 }}
+                          >
+                            +{maxSlot - maxSlots + 1}개
                           </div>
                         )}
                       </div>

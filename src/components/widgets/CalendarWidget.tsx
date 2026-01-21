@@ -1,4 +1,4 @@
-import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Calendar, ChevronLeft, ChevronRight, Eye, EyeOff } from 'lucide-react';
 import { useState } from 'react';
 import {
   format,
@@ -16,6 +16,7 @@ import {
 import { ko } from 'date-fns/locale';
 import { Widget } from './Widget';
 import { useProjectStore } from '@/stores/useProjectStore';
+import { useAppStore } from '@/stores/useAppStore';
 import { cn } from '@/utils/cn';
 
 const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
@@ -23,6 +24,7 @@ const WEEKDAYS = ['일', '월', '화', '수', '목', '금', '토'];
 export function CalendarWidget() {
   const [currentDate, setCurrentDate] = useState(new Date());
   const { episodes } = useProjectStore();
+  const { showEpisodeDeadlines, setShowEpisodeDeadlines } = useAppStore();
 
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
@@ -32,6 +34,7 @@ export function CalendarWidget() {
   const days = eachDayOfInterval({ start: calendarStart, end: calendarEnd });
 
   const getDueDatesForDay = (day: Date) => {
+    if (!showEpisodeDeadlines) return [];
     return episodes.filter((ep) => isSameDay(new Date(ep.dueDate), day));
   };
 
@@ -49,9 +52,23 @@ export function CalendarWidget() {
           >
             <ChevronLeft size={14} />
           </button>
-          <span className="font-medium text-xs">
-            {format(currentDate, 'yyyy년 M월', { locale: ko })}
-          </span>
+          <div className="flex items-center gap-1">
+            <span className="font-medium text-xs">
+              {format(currentDate, 'yyyy년 M월', { locale: ko })}
+            </span>
+            <button
+              onClick={() => setShowEpisodeDeadlines(!showEpisodeDeadlines)}
+              className={cn(
+                'p-1 rounded transition-colors',
+                showEpisodeDeadlines
+                  ? 'text-brand-primary hover:bg-brand-primary/10'
+                  : 'text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
+              )}
+              title={showEpisodeDeadlines ? '마감일 숨기기' : '마감일 표시'}
+            >
+              {showEpisodeDeadlines ? <Eye size={12} /> : <EyeOff size={12} />}
+            </button>
+          </div>
           <button
             onClick={nextMonth}
             className="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded"
