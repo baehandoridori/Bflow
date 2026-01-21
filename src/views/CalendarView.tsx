@@ -15,7 +15,6 @@ import {
   isSameMonth,
   isSameDay,
   isToday,
-  isWithinInterval,
   differenceInDays,
   isBefore,
   parseISO,
@@ -160,40 +159,55 @@ export function CalendarView() {
     return eventSlots;
   }, [allEvents]);
 
-  // Get events with slots for a specific day
-  const getEventsWithSlotsForDay = (date: Date): EventWithSlot[] => {
-    const dayEvents = allEvents.filter((event) => {
-      const eventStart = new Date(event.startDate);
-      const eventEnd = new Date(event.endDate);
-      return isWithinInterval(date, { start: eventStart, end: eventEnd }) ||
-             isSameDay(date, eventStart) ||
-             isSameDay(date, eventEnd);
+
+
+  // Get events for a week with their positions
+  const getEventsForWeek = (week: Date[]): { event: EventWithSlot; startDay: number; span: number }[] => {
+    const weekStart = week[0];
+    const weekEnd = week[week.length - 1];
+
+    const weekEvents: { event: EventWithSlot; startDay: number; span: number }[] = [];
+
+    allEvents.forEach((event) => {
+      const eventStart = parseISO(event.startDate);
+      const eventEnd = parseISO(event.endDate);
+
+      // Check if event overlaps with this week
+      const eventInWeek = !isBefore(eventEnd, weekStart) && !isBefore(weekEnd, eventStart);
+
+      if (eventInWeek) {
+        // Calculate start day index (0-6) within the week
+        let startDay = 0;
+        for (let i = 0; i < week.length; i++) {
+          if (isSameDay(week[i], eventStart) || isBefore(eventStart, week[i])) {
+            startDay = i;
+            break;
+          }
+        }
+        if (isBefore(eventStart, weekStart)) {
+          startDay = 0;
+        }
+
+        // Calculate span (number of days visible in this week)
+        const visibleStart = isBefore(eventStart, weekStart) ? weekStart : eventStart;
+        const visibleEnd = isBefore(weekEnd, eventEnd) ? weekEnd : eventEnd;
+        const span = Math.min(differenceInDays(visibleEnd, visibleStart) + 1, 7 - startDay);
+
+        weekEvents.push({
+          event: {
+            ...event,
+            slot: calculateEventSlots.get(event.id) || 0,
+          },
+          startDay,
+          span: Math.max(1, span),
+        });
+      }
     });
 
-    return dayEvents.map((event) => ({
-      ...event,
-      slot: calculateEventSlots.get(event.id) || 0,
-    })).sort((a, b) => a.slot - b.slot);
+    // Sort by slot
+    return weekEvents.sort((a, b) => a.event.slot - b.event.slot);
   };
 
-
-  // Check if event starts on this day
-  const isEventStart = (event: CalendarEvent, date: Date) => {
-    return isSameDay(new Date(event.startDate), date);
-  };
-
-  // Check if event is multi-day
-  const isMultiDayEvent = (event: CalendarEvent) => {
-    return event.startDate !== event.endDate;
-  };
-
-  // Get event span for a day (how many days from this point)
-  const getEventSpan = (event: CalendarEvent, date: Date, weekEnd: Date) => {
-    const eventEnd = new Date(event.endDate);
-    const daysToEnd = differenceInDays(eventEnd, date) + 1;
-    const daysToWeekEnd = differenceInDays(weekEnd, date) + 1;
-    return Math.min(daysToEnd, daysToWeekEnd);
-  };
 
   const handlePrev = () => {
     if (viewMode === 'monthly') {
@@ -355,96 +369,112 @@ export function CalendarView() {
 
         {/* Calendar Grid */}
         <div className="divide-y divide-light-border dark:divide-dark-border">
-          {weeks.map((week, weekIndex) => (
-            <div key={weekIndex} className="grid grid-cols-7 divide-x divide-light-border dark:divide-dark-border">
-              {week.map((date, dayIndex) => {
-                const eventsWithSlots = getEventsWithSlotsForDay(date);
-                const isCurrentMonth = isSameMonth(date, currentDate);
-                const isCurrentDay = isToday(date);
-                const weekEnd = week[week.length - 1];
-                const maxSlots = viewMode === 'monthly' ? 3 : 10;
-                const maxSlot = Math.max(...eventsWithSlots.map(e => e.slot), -1);
-                const visibleSlotCount = Math.min(maxSlot + 1, maxSlots);
+          {weeks.map((week, weekIndex) => {
+            const weekEvents = getEventsForWeek(week);
+            const maxSlots = viewMode === 'monthly' ? 3 : 10;
+            const maxSlot = Math.max(...weekEvents.map(e => e.event.slot), -1);
+            const visibleSlotCount = Math.min(maxSlot + 1, maxSlots);
+            const eventAreaHeight = Math.max(visibleSlotCount * 22, 0);
 
-                return (
-                  <div
-                    key={date.toISOString()}
-                    onClick={() => handleDayClick(date)}
-                    className={cn(
-                      'transition-colors cursor-pointer overflow-hidden',
-                      viewMode === 'monthly' ? 'min-h-[100px]' : 'min-h-[200px]',
-                      !isCurrentMonth && viewMode === 'monthly' && 'bg-gray-50 dark:bg-dark-surface-hover/50',
-                      'hover:bg-gray-50 dark:hover:bg-dark-surface-hover'
-                    )}
-                  >
-                    <div className="p-2">
+            return (
+              <div key={weekIndex} className="relative">
+                {/* Date cells */}
+                <div className="grid grid-cols-7 divide-x divide-light-border dark:divide-dark-border">
+                  {week.map((date, dayIndex) => {
+                    const isCurrentMonth = isSameMonth(date, currentDate);
+                    const isCurrentDay = isToday(date);
+
+                    return (
                       <div
+                        key={date.toISOString()}
+                        onClick={() => handleDayClick(date)}
                         className={cn(
-                          'w-7 h-7 flex items-center justify-center rounded-full text-sm mb-1',
-                          isCurrentDay && 'bg-brand-primary text-dark-bg font-bold',
-                          !isCurrentDay && dayIndex === 0 && 'text-red-500',
-                          !isCurrentDay && dayIndex === 6 && 'text-blue-500',
-                          !isCurrentDay && !isCurrentMonth && viewMode === 'monthly' && 'text-light-text-secondary/50 dark:text-dark-text-secondary/50',
-                          !isCurrentDay && (isCurrentMonth || viewMode === 'weekly') && dayIndex !== 0 && dayIndex !== 6 && 'text-light-text dark:text-dark-text'
+                          'transition-colors cursor-pointer',
+                          viewMode === 'monthly' ? 'min-h-[100px]' : 'min-h-[200px]',
+                          !isCurrentMonth && viewMode === 'monthly' && 'bg-gray-50 dark:bg-dark-surface-hover/50',
+                          'hover:bg-gray-50 dark:hover:bg-dark-surface-hover'
                         )}
                       >
-                        {format(date, 'd')}
-                      </div>
-
-                      {/* Events - slot-based positioning */}
-                      <div className="relative" style={{ minHeight: visibleSlotCount * 22 }}>
-                        {eventsWithSlots
-                          .filter((event) => isEventStart(event, date) || dayIndex === 0)
-                          .filter((event) => event.slot < maxSlots)
-                          .map((event) => {
-                            const span = isMultiDayEvent(event) ? getEventSpan(event, date, weekEnd) : 1;
-                            const isGenerated = event.id.startsWith('ep-deadline-');
-
-                            return (
-                              <div
-                                key={event.id}
-                                onClick={(e) => handleEventClick(event, e)}
-                                className={cn(
-                                  'absolute left-0 right-0 group px-1.5 py-0.5 rounded text-xs truncate transition-opacity',
-                                  !isGenerated && 'cursor-pointer hover:opacity-80'
-                                )}
-                                style={{
-                                  top: event.slot * 22,
-                                  backgroundColor: `${event.color || '#6B7280'}20`,
-                                  color: event.color || '#6B7280',
-                                  borderLeft: `2px solid ${event.color || '#6B7280'}`,
-                                  width: span > 1 ? `calc(${span * 100}% + ${(span - 1) * 8}px)` : '100%',
-                                  zIndex: span > 1 ? 10 : 1,
-                                  height: 20,
-                                }}
-                              >
-                                <span className="truncate block">{event.title}</span>
-                                {!isGenerated && (
-                                  <button
-                                    onClick={(e) => handleDeleteClick(event, e)}
-                                    className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-600"
-                                  >
-                                    ×
-                                  </button>
-                                )}
-                              </div>
-                            );
-                          })}
-                        {maxSlot >= maxSlots && (
+                        <div className="p-2">
                           <div
-                            className="absolute left-0 text-xs text-light-text-secondary dark:text-dark-text-secondary px-1.5"
-                            style={{ top: maxSlots * 22 }}
+                            className={cn(
+                              'w-7 h-7 flex items-center justify-center rounded-full text-sm',
+                              isCurrentDay && 'bg-brand-primary text-dark-bg font-bold',
+                              !isCurrentDay && dayIndex === 0 && 'text-red-500',
+                              !isCurrentDay && dayIndex === 6 && 'text-blue-500',
+                              !isCurrentDay && !isCurrentMonth && viewMode === 'monthly' && 'text-light-text-secondary/50 dark:text-dark-text-secondary/50',
+                              !isCurrentDay && (isCurrentMonth || viewMode === 'weekly') && dayIndex !== 0 && dayIndex !== 6 && 'text-light-text dark:text-dark-text'
+                            )}
                           >
-                            +{maxSlot - maxSlots + 1}개
+                            {format(date, 'd')}
                           </div>
-                        )}
+                        </div>
                       </div>
-                    </div>
+                    );
+                  })}
+                </div>
+
+                {/* Events layer - positioned over the week */}
+                <div
+                  className="absolute left-0 right-0 pointer-events-none px-2"
+                  style={{ top: 40, height: eventAreaHeight }}
+                >
+                  <div className="relative h-full">
+                    {weekEvents
+                      .filter((item) => item.event.slot < maxSlots)
+                      .map((item) => {
+                        const { event, startDay, span } = item;
+                        const isGenerated = event.id.startsWith('ep-deadline-');
+                        const leftPercent = (startDay / 7) * 100;
+                        const widthPercent = (span / 7) * 100;
+
+                        return (
+                          <div
+                            key={event.id}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEventClick(event, e);
+                            }}
+                            className={cn(
+                              'absolute group px-1.5 py-0.5 rounded text-xs truncate transition-opacity pointer-events-auto',
+                              !isGenerated && 'cursor-pointer hover:opacity-80'
+                            )}
+                            style={{
+                              top: event.slot * 22,
+                              left: `calc(${leftPercent}% + 2px)`,
+                              width: `calc(${widthPercent}% - 4px)`,
+                              backgroundColor: `${event.color || '#6B7280'}20`,
+                              color: event.color || '#6B7280',
+                              borderLeft: `2px solid ${event.color || '#6B7280'}`,
+                              height: 20,
+                              zIndex: 10,
+                            }}
+                          >
+                            <span className="truncate block">{event.title}</span>
+                            {!isGenerated && (
+                              <button
+                                onClick={(e) => handleDeleteClick(event, e)}
+                                className="absolute right-1 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-600"
+                              >
+                                ×
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    {maxSlot >= maxSlots && (
+                      <div
+                        className="absolute left-0 text-xs text-light-text-secondary dark:text-dark-text-secondary px-1.5"
+                        style={{ top: maxSlots * 22 }}
+                      >
+                        +{maxSlot - maxSlots + 1}개
+                      </div>
+                    )}
                   </div>
-                );
-              })}
-            </div>
-          ))}
+                </div>
+              </div>
+            );
+          })}
         </div>
       </Card>
 
