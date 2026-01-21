@@ -577,30 +577,34 @@ export function NodeMapView() {
               const isHighlighted = isHovered || isSelected || isConnected;
 
               return (
-                <motion.g
+                <g
                   key={node.id}
-                  animate={{
-                    scale: isHovered ? 1.2 : 1,
-                    y: isHovered ? -5 : 0,
-                  }}
-                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
                   style={{ cursor: draggingNode === node.id ? 'grabbing' : 'grab' }}
                   onMouseDown={(e) => handleNodeDragStart(node.id, e)}
                   onMouseEnter={() => setHoveredNode(node.id)}
                   onMouseLeave={() => setHoveredNode(null)}
                   onClick={() => setSelectedNode(node.id === selectedNode ? null : node.id)}
                 >
+                  {/* 투명한 히트 영역 (호버 안정화) */}
+                  <circle
+                    cx={node.x}
+                    cy={node.y}
+                    r={size / 2 + 15}
+                    fill="transparent"
+                  />
+
                   {/* 그림자/글로우 효과 */}
-                  {isHovered && (
-                    <circle
-                      cx={node.x}
-                      cy={node.y}
-                      r={size / 2 + 12}
-                      fill={node.color}
-                      fillOpacity={0.15}
-                      className="blur-sm"
-                    />
-                  )}
+                  <motion.circle
+                    cx={node.x}
+                    cy={node.y}
+                    initial={{ r: 0, opacity: 0 }}
+                    animate={{
+                      r: isHovered ? size / 2 + 10 : 0,
+                      opacity: isHovered ? 0.2 : 0,
+                    }}
+                    transition={{ duration: 0.15 }}
+                    fill={node.color}
+                  />
 
                   {/* 선택 링 */}
                   {isSelected && (
@@ -616,15 +620,18 @@ export function NodeMapView() {
                   )}
 
                   {/* 메인 노드 */}
-                  <circle
+                  <motion.circle
                     cx={node.x}
                     cy={node.y}
-                    r={size / 2}
+                    animate={{
+                      r: isHovered ? size / 2 + 3 : size / 2,
+                    }}
+                    transition={{ duration: 0.15 }}
                     fill={node.color}
                     fillOpacity={isHighlighted ? 1 : 0.7}
                     stroke={isHighlighted ? 'white' : 'transparent'}
                     strokeWidth={isHighlighted ? 2 : 0}
-                    filter={isHovered ? 'drop-shadow(0 4px 6px rgba(0,0,0,0.3))' : undefined}
+                    filter={isHovered ? 'drop-shadow(0 4px 8px rgba(0,0,0,0.4))' : undefined}
                   />
 
                   {/* 진행률 (에피소드) */}
@@ -677,7 +684,7 @@ export function NodeMapView() {
                   >
                     {node.label.length > 12 ? node.label.slice(0, 12) + '...' : node.label}
                   </text>
-                </motion.g>
+                </g>
               );
             })}
           </g>
