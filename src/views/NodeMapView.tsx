@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
-import { motion } from 'framer-motion';
-import { ZoomIn, ZoomOut, Maximize2, Filter } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ZoomIn, ZoomOut, Maximize2, Filter, Settings, Play, Pause } from 'lucide-react';
 import { useProjectStore } from '@/stores/useProjectStore';
 import { useTaskStore } from '@/stores/useTaskStore';
 import { useTeamStore } from '@/stores/useTeamStore';
@@ -12,6 +12,8 @@ interface Node {
   label: string;
   x: number;
   y: number;
+  vx: number;
+  vy: number;
   color: string;
   status?: string;
   progress?: number;
@@ -23,8 +25,24 @@ interface Edge {
   type: 'contains' | 'assigned' | 'dependency';
 }
 
-// 노드 위치 계산 (원형 레이아웃)
-function calculateNodePositions(
+interface PhysicsSettings {
+  springStiffness: number;
+  springLength: number;
+  repulsion: number;
+  gravity: number;
+  damping: number;
+}
+
+const DEFAULT_PHYSICS: PhysicsSettings = {
+  springStiffness: 0.03,
+  springLength: 100,
+  repulsion: 5000,
+  gravity: 0.02,
+  damping: 0.85,
+};
+
+// 초기 노드 위치 계산 (원형 레이아웃)
+function calculateInitialPositions(
   episodes: { id: string; name: string; projectId: string; taskIds: string[]; progress: number }[],
   tasks: { id: string; title: string; episodeId: string; assigneeId?: string; status: string }[],
   members: { id: string; name: string; status: string }[],
@@ -36,7 +54,7 @@ function calculateNodePositions(
   const edges: Edge[] = [];
 
   // 에피소드 노드 (중앙 원)
-  const episodeRadius = 200;
+  const episodeRadius = 180;
   episodes.forEach((ep, i) => {
     const angle = (2 * Math.PI * i) / episodes.length - Math.PI / 2;
     const project = projects.find((p) => p.id === ep.projectId);
@@ -46,6 +64,8 @@ function calculateNodePositions(
       label: ep.name,
       x: centerX + episodeRadius * Math.cos(angle),
       y: centerY + episodeRadius * Math.sin(angle),
+      vx: 0,
+      vy: 0,
       color: project?.color || '#6B7280',
       progress: ep.progress,
     });
@@ -61,7 +81,7 @@ function calculateNodePositions(
     const project = projects.find((p) => p.id === ep.projectId);
 
     epTasks.forEach((task, taskIndex) => {
-      const taskAngle = epAngle + ((taskIndex - (epTasks.length - 1) / 2) * 0.3);
+      const taskAngle = epAngle + ((taskIndex - (epTasks.length - 1) / 2) * 0.4);
       const taskX = epX + taskRadius * Math.cos(taskAngle);
       const taskY = epY + taskRadius * Math.sin(taskAngle);
 
@@ -71,30 +91,22 @@ function calculateNodePositions(
         label: task.title,
         x: taskX,
         y: taskY,
+        vx: 0,
+        vy: 0,
         color: project?.color || '#6B7280',
         status: task.status,
       });
 
-      // 에피소드 -> 태스크 연결
-      edges.push({
-        from: ep.id,
-        to: task.id,
-        type: 'contains',
-      });
+      edges.push({ from: ep.id, to: task.id, type: 'contains' });
 
-      // 태스크 -> 팀원 연결
       if (task.assigneeId) {
-        edges.push({
-          from: task.id,
-          to: task.assigneeId,
-          type: 'assigned',
-        });
+        edges.push({ from: task.id, to: task.assigneeId, type: 'assigned' });
       }
     });
   });
 
   // 팀원 노드 (외곽 원)
-  const memberRadius = 380;
+  const memberRadius = 320;
   const activeMembers = members.filter((m) =>
     tasks.some((t) => t.assigneeId === m.id)
   );
@@ -106,6 +118,8 @@ function calculateNodePositions(
       label: member.name,
       x: centerX + memberRadius * Math.cos(angle),
       y: centerY + memberRadius * Math.sin(angle),
+      vx: 0,
+      vy: 0,
       color: getStatusColor(member.status),
       status: member.status,
     });
@@ -129,139 +143,118 @@ function getStatusColor(status: string): string {
   }
 }
 
-interface NodeComponentProps {
-  node: Node;
-  isSelected: boolean;
-  isDragging: boolean;
-  onSelect: (id: string) => void;
-  onDragStart: (id: string, e: React.MouseEvent) => void;
-  scale: number;
-}
-
-function NodeComponent({ node, isSelected, isDragging, onSelect, onDragStart, scale }: NodeComponentProps) {
-  const size = node.type === 'episode' ? 60 : node.type === 'task' ? 40 : 36;
-
-  return (
-    <motion.g
-      initial={{ scale: 0, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-      style={{ cursor: isDragging ? 'grabbing' : 'grab' }}
-      onMouseDown={(e) => onDragStart(node.id, e)}
-      onClick={() => onSelect(node.id)}
-    >
-      {/* 선택 하이라이트 */}
-      {isSelected && (
-        <circle
-          cx={node.x}
-          cy={node.y}
-          r={size / 2 + 8}
-          fill="none"
-          stroke={node.color}
-          strokeWidth={2}
-          strokeDasharray="4 2"
-          className="animate-pulse"
-        />
-      )}
-
-      {/* 메인 노드 */}
-      <circle
-        cx={node.x}
-        cy={node.y}
-        r={size / 2}
-        fill={node.color}
-        className={cn(
-          'transition-all duration-200',
-          isSelected ? 'filter drop-shadow-lg' : 'hover:filter hover:brightness-110'
-        )}
-      />
-
-      {/* 진행률 표시 (에피소드) */}
-      {node.type === 'episode' && node.progress !== undefined && (
-        <circle
-          cx={node.x}
-          cy={node.y}
-          r={size / 2 - 3}
-          fill="none"
-          stroke="rgba(255,255,255,0.3)"
-          strokeWidth={4}
-          strokeDasharray={`${(node.progress / 100) * Math.PI * (size - 6)} ${Math.PI * (size - 6)}`}
-          transform={`rotate(-90 ${node.x} ${node.y})`}
-        />
-      )}
-
-      {/* 상태 아이콘 (태스크/멤버) */}
-      {node.type !== 'episode' && (
-        <circle
-          cx={node.x}
-          cy={node.y}
-          r={size / 4}
-          fill="white"
-          fillOpacity={0.9}
-        />
-      )}
-
-      {/* 라벨 */}
-      <text
-        x={node.x}
-        y={node.y + size / 2 + 14}
-        textAnchor="middle"
-        className="fill-current text-light-text dark:text-dark-text"
-        style={{ fontSize: `${12 / scale}px`, fontWeight: node.type === 'episode' ? 600 : 400 }}
-      >
-        {node.label.length > 15 ? node.label.slice(0, 15) + '...' : node.label}
-      </text>
-
-      {/* 타입 아이콘 */}
-      {node.type === 'episode' && (
-        <text
-          x={node.x}
-          y={node.y + 5}
-          textAnchor="middle"
-          className="fill-white"
-          style={{ fontSize: `${14 / scale}px`, fontWeight: 700 }}
-        >
-          {node.progress}%
-        </text>
-      )}
-    </motion.g>
-  );
-}
-
 export function NodeMapView() {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
+  const animationRef = useRef<number | null>(null);
 
   const { episodes, projects } = useProjectStore();
   const { tasks } = useTaskStore();
   const { members: teamMembers } = useTeamStore();
 
-  const [scale, setScale] = useState(1);
+  const [scale, setScale] = useState(0.9);
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [draggingNode, setDraggingNode] = useState<string | null>(null);
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
-  const [nodePositions, setNodePositions] = useState<Record<string, { x: number; y: number }>>({});
+  const [nodes, setNodes] = useState<Node[]>([]);
+  const [edges, setEdges] = useState<Edge[]>([]);
+  const [isSimulating, setIsSimulating] = useState(true);
+  const [showSettings, setShowSettings] = useState(false);
+  const [physics, setPhysics] = useState<PhysicsSettings>(DEFAULT_PHYSICS);
   const [filterType, setFilterType] = useState<'all' | 'episode' | 'task' | 'member'>('all');
 
-  // 노드와 엣지 계산
-  const { nodes: initialNodes, edges } = useMemo(() => {
-    const centerX = 500;
-    const centerY = 400;
-    return calculateNodePositions(episodes, tasks, teamMembers, projects, centerX, centerY);
+  // 초기 노드 계산
+  useEffect(() => {
+    const centerX = 450;
+    const centerY = 350;
+    const { nodes: initialNodes, edges: initialEdges } = calculateInitialPositions(
+      episodes, tasks, teamMembers, projects, centerX, centerY
+    );
+    setNodes(initialNodes);
+    setEdges(initialEdges);
   }, [episodes, tasks, teamMembers, projects]);
 
-  // 노드 위치 (드래그 적용)
-  const nodes = useMemo(() => {
-    return initialNodes.map((node) => ({
-      ...node,
-      x: nodePositions[node.id]?.x ?? node.x,
-      y: nodePositions[node.id]?.y ?? node.y,
-    }));
-  }, [initialNodes, nodePositions]);
+  // 물리 시뮬레이션
+  useEffect(() => {
+    if (!isSimulating || nodes.length === 0) return;
 
-  // 필터링된 노드
+    const simulate = () => {
+      setNodes((prevNodes) => {
+        const newNodes = prevNodes.map((node) => ({ ...node }));
+        const centerX = 450;
+        const centerY = 350;
+
+        // 힘 계산
+        newNodes.forEach((node, i) => {
+          if (draggingNode === node.id) return;
+
+          let fx = 0;
+          let fy = 0;
+
+          // 중력 (중심으로 끌어당김)
+          const dx = centerX - node.x;
+          const dy = centerY - node.y;
+          fx += dx * physics.gravity;
+          fy += dy * physics.gravity;
+
+          // 반발력 (다른 노드들과)
+          newNodes.forEach((other, j) => {
+            if (i === j) return;
+            const dx = node.x - other.x;
+            const dy = node.y - other.y;
+            const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+            const force = physics.repulsion / (dist * dist);
+            fx += (dx / dist) * force;
+            fy += (dy / dist) * force;
+          });
+
+          // 스프링 힘 (연결된 노드들과)
+          edges.forEach((edge) => {
+            let other: Node | undefined;
+            if (edge.from === node.id) {
+              other = newNodes.find((n) => n.id === edge.to);
+            } else if (edge.to === node.id) {
+              other = newNodes.find((n) => n.id === edge.from);
+            }
+            if (other) {
+              const dx = other.x - node.x;
+              const dy = other.y - node.y;
+              const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+              const displacement = dist - physics.springLength;
+              const force = displacement * physics.springStiffness;
+              fx += (dx / dist) * force;
+              fy += (dy / dist) * force;
+            }
+          });
+
+          // 속도 업데이트
+          node.vx = (node.vx + fx) * physics.damping;
+          node.vy = (node.vy + fy) * physics.damping;
+
+          // 위치 업데이트
+          node.x += node.vx;
+          node.y += node.vy;
+        });
+
+        return newNodes;
+      });
+
+      animationRef.current = requestAnimationFrame(simulate);
+    };
+
+    animationRef.current = requestAnimationFrame(simulate);
+
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+    };
+  }, [isSimulating, edges, physics, draggingNode, nodes.length]);
+
+  // 필터링된 노드와 엣지
   const filteredNodes = useMemo(() => {
     if (filterType === 'all') return nodes;
     return nodes.filter((n) => n.type === filterType);
@@ -272,24 +265,35 @@ export function NodeMapView() {
     return edges.filter((e) => nodeIds.has(e.from) && nodeIds.has(e.to));
   }, [edges, filteredNodes]);
 
+  // 연결된 노드 ID 목록
+  const connectedNodeIds = useMemo(() => {
+    if (!hoveredNode && !selectedNode) return new Set<string>();
+    const targetId = hoveredNode || selectedNode;
+    const ids = new Set<string>([targetId!]);
+    edges.forEach((e) => {
+      if (e.from === targetId) ids.add(e.to);
+      if (e.to === targetId) ids.add(e.from);
+    });
+    return ids;
+  }, [hoveredNode, selectedNode, edges]);
+
   // 줌
   const handleZoom = useCallback((delta: number) => {
     setScale((s) => Math.max(0.3, Math.min(2, s + delta)));
   }, []);
 
-  // 줌 리셋
   const handleResetView = useCallback(() => {
-    setScale(1);
+    setScale(0.9);
     setOffset({ x: 0, y: 0 });
   }, []);
 
-  // 노드 드래그 시작
+  // 노드 드래그
   const handleNodeDragStart = useCallback((nodeId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setDraggingNode(nodeId);
   }, []);
 
-  // 패닝 시작
+  // 패닝
   const handlePanStart = useCallback((e: React.MouseEvent) => {
     if (draggingNode) return;
     setIsPanning(true);
@@ -306,10 +310,11 @@ export function NodeMapView() {
       const x = (e.clientX - rect.left - offset.x) / scale;
       const y = (e.clientY - rect.top - offset.y) / scale;
 
-      setNodePositions((prev) => ({
-        ...prev,
-        [draggingNode]: { x, y },
-      }));
+      setNodes((prev) =>
+        prev.map((node) =>
+          node.id === draggingNode ? { ...node, x, y, vx: 0, vy: 0 } : node
+        )
+      );
     } else if (isPanning) {
       setOffset({
         x: e.clientX - panStart.x,
@@ -318,7 +323,6 @@ export function NodeMapView() {
     }
   }, [draggingNode, isPanning, panStart, offset, scale]);
 
-  // 마우스 업
   const handleMouseUp = useCallback(() => {
     setDraggingNode(null);
     setIsPanning(false);
@@ -344,6 +348,16 @@ export function NodeMapView() {
   const selectedTask = selectedNodeData?.type === 'task' ? tasks.find((t) => t.id === selectedNode) : null;
   const selectedMember = selectedNodeData?.type === 'member' ? teamMembers.find((m) => m.id === selectedNode) : null;
 
+  // 노드 크기
+  const getNodeSize = (type: string) => {
+    switch (type) {
+      case 'episode': return 50;
+      case 'task': return 32;
+      case 'member': return 28;
+      default: return 30;
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -361,7 +375,7 @@ export function NodeMapView() {
         onMouseLeave={handleMouseUp}
       >
         {/* 툴바 */}
-        <div className="absolute top-4 left-4 z-10 flex items-center gap-2 bg-light-bg/80 dark:bg-dark-bg/80 backdrop-blur-sm rounded-lg p-2 shadow-lg">
+        <div className="absolute top-4 left-4 z-10 flex items-center gap-2 bg-light-bg/90 dark:bg-dark-bg/90 backdrop-blur-sm rounded-lg p-2 shadow-lg">
           <button
             onClick={() => handleZoom(0.2)}
             className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
@@ -384,10 +398,31 @@ export function NodeMapView() {
           >
             <Maximize2 size={18} />
           </button>
+          <div className="w-px h-6 bg-gray-300 dark:bg-gray-600" />
+          <button
+            onClick={() => setIsSimulating(!isSimulating)}
+            className={cn(
+              "p-2 rounded-lg transition-colors",
+              isSimulating ? "bg-green-100 dark:bg-green-900/30 text-green-600" : "hover:bg-gray-100 dark:hover:bg-gray-700"
+            )}
+            title={isSimulating ? "시뮬레이션 중지" : "시뮬레이션 시작"}
+          >
+            {isSimulating ? <Pause size={18} /> : <Play size={18} />}
+          </button>
+          <button
+            onClick={() => setShowSettings(!showSettings)}
+            className={cn(
+              "p-2 rounded-lg transition-colors",
+              showSettings ? "bg-brand-primary/20 text-brand-primary" : "hover:bg-gray-100 dark:hover:bg-gray-700"
+            )}
+            title="물리 설정"
+          >
+            <Settings size={18} />
+          </button>
         </div>
 
         {/* 필터 */}
-        <div className="absolute top-4 right-4 z-10 flex items-center gap-2 bg-light-bg/80 dark:bg-dark-bg/80 backdrop-blur-sm rounded-lg p-2 shadow-lg">
+        <div className="absolute top-4 right-4 z-10 flex items-center gap-2 bg-light-bg/90 dark:bg-dark-bg/90 backdrop-blur-sm rounded-lg p-2 shadow-lg">
           <Filter size={16} className="text-light-text-secondary dark:text-dark-text-secondary" />
           <select
             value={filterType}
@@ -401,7 +436,99 @@ export function NodeMapView() {
           </select>
         </div>
 
-        {/* 줌 레벨 표시 */}
+        {/* 물리 설정 패널 */}
+        <AnimatePresence>
+          {showSettings && (
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="absolute top-16 left-4 z-10 bg-light-bg/95 dark:bg-dark-bg/95 backdrop-blur-sm rounded-lg p-4 shadow-lg w-64"
+            >
+              <h4 className="font-medium text-sm mb-3 text-light-text dark:text-dark-text">물리 설정</h4>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-light-text-secondary dark:text-dark-text-secondary block mb-1">
+                    장력 (Spring): {physics.springStiffness.toFixed(3)}
+                  </label>
+                  <input
+                    type="range"
+                    min="0.001"
+                    max="0.1"
+                    step="0.001"
+                    value={physics.springStiffness}
+                    onChange={(e) => setPhysics((p) => ({ ...p, springStiffness: parseFloat(e.target.value) }))}
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-light-text-secondary dark:text-dark-text-secondary block mb-1">
+                    스프링 길이: {physics.springLength}
+                  </label>
+                  <input
+                    type="range"
+                    min="50"
+                    max="200"
+                    step="10"
+                    value={physics.springLength}
+                    onChange={(e) => setPhysics((p) => ({ ...p, springLength: parseInt(e.target.value) }))}
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-light-text-secondary dark:text-dark-text-secondary block mb-1">
+                    반발력: {physics.repulsion}
+                  </label>
+                  <input
+                    type="range"
+                    min="1000"
+                    max="15000"
+                    step="500"
+                    value={physics.repulsion}
+                    onChange={(e) => setPhysics((p) => ({ ...p, repulsion: parseInt(e.target.value) }))}
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-light-text-secondary dark:text-dark-text-secondary block mb-1">
+                    중력: {physics.gravity.toFixed(3)}
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="0.1"
+                    step="0.005"
+                    value={physics.gravity}
+                    onChange={(e) => setPhysics((p) => ({ ...p, gravity: parseFloat(e.target.value) }))}
+                    className="w-full"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-light-text-secondary dark:text-dark-text-secondary block mb-1">
+                    감쇠: {physics.damping.toFixed(2)}
+                  </label>
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="0.99"
+                    step="0.01"
+                    value={physics.damping}
+                    onChange={(e) => setPhysics((p) => ({ ...p, damping: parseFloat(e.target.value) }))}
+                    className="w-full"
+                  />
+                </div>
+                <button
+                  onClick={() => setPhysics(DEFAULT_PHYSICS)}
+                  className="w-full text-xs py-1.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded transition-colors"
+                >
+                  기본값으로 초기화
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* 줌 레벨 */}
         <div className="absolute bottom-4 left-4 z-10 text-xs text-light-text-secondary dark:text-dark-text-secondary bg-light-bg/80 dark:bg-dark-bg/80 backdrop-blur-sm rounded px-2 py-1">
           {Math.round(scale * 100)}%
         </div>
@@ -424,44 +551,141 @@ export function NodeMapView() {
               const toNode = nodes.find((n) => n.id === edge.to);
               if (!fromNode || !toNode) return null;
 
-              const isHighlighted =
-                selectedNode === edge.from || selectedNode === edge.to;
+              const isHighlighted = connectedNodeIds.has(edge.from) && connectedNodeIds.has(edge.to);
 
               return (
                 <motion.line
                   key={`${edge.from}-${edge.to}-${i}`}
-                  initial={{ pathLength: 0, opacity: 0 }}
-                  animate={{ pathLength: 1, opacity: isHighlighted ? 1 : 0.3 }}
-                  transition={{ duration: 0.5, delay: i * 0.02 }}
                   x1={fromNode.x}
                   y1={fromNode.y}
                   x2={toNode.x}
                   y2={toNode.y}
                   stroke={isHighlighted ? fromNode.color : '#9CA3AF'}
-                  strokeWidth={isHighlighted ? 2 : 1}
-                  strokeDasharray={edge.type === 'assigned' ? '4 2' : undefined}
+                  strokeWidth={isHighlighted ? 2.5 : 1}
+                  strokeOpacity={isHighlighted ? 0.8 : 0.2}
+                  strokeDasharray={edge.type === 'assigned' ? '6 3' : undefined}
                 />
               );
             })}
 
             {/* 노드 */}
-            {filteredNodes.map((node) => (
-              <NodeComponent
-                key={node.id}
-                node={node}
-                isSelected={selectedNode === node.id}
-                isDragging={draggingNode === node.id}
-                onSelect={setSelectedNode}
-                onDragStart={handleNodeDragStart}
-                scale={scale}
-              />
-            ))}
+            {filteredNodes.map((node) => {
+              const size = getNodeSize(node.type);
+              const isHovered = hoveredNode === node.id;
+              const isSelected = selectedNode === node.id;
+              const isConnected = connectedNodeIds.has(node.id);
+              const isHighlighted = isHovered || isSelected || isConnected;
+
+              return (
+                <motion.g
+                  key={node.id}
+                  animate={{
+                    scale: isHovered ? 1.2 : 1,
+                    y: isHovered ? -5 : 0,
+                  }}
+                  transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+                  style={{ cursor: draggingNode === node.id ? 'grabbing' : 'grab' }}
+                  onMouseDown={(e) => handleNodeDragStart(node.id, e)}
+                  onMouseEnter={() => setHoveredNode(node.id)}
+                  onMouseLeave={() => setHoveredNode(null)}
+                  onClick={() => setSelectedNode(node.id === selectedNode ? null : node.id)}
+                >
+                  {/* 그림자/글로우 효과 */}
+                  {isHovered && (
+                    <circle
+                      cx={node.x}
+                      cy={node.y}
+                      r={size / 2 + 12}
+                      fill={node.color}
+                      fillOpacity={0.15}
+                      className="blur-sm"
+                    />
+                  )}
+
+                  {/* 선택 링 */}
+                  {isSelected && (
+                    <circle
+                      cx={node.x}
+                      cy={node.y}
+                      r={size / 2 + 6}
+                      fill="none"
+                      stroke={node.color}
+                      strokeWidth={2}
+                      strokeDasharray="4 2"
+                    />
+                  )}
+
+                  {/* 메인 노드 */}
+                  <circle
+                    cx={node.x}
+                    cy={node.y}
+                    r={size / 2}
+                    fill={node.color}
+                    fillOpacity={isHighlighted ? 1 : 0.7}
+                    stroke={isHighlighted ? 'white' : 'transparent'}
+                    strokeWidth={isHighlighted ? 2 : 0}
+                    filter={isHovered ? 'drop-shadow(0 4px 6px rgba(0,0,0,0.3))' : undefined}
+                  />
+
+                  {/* 진행률 (에피소드) */}
+                  {node.type === 'episode' && node.progress !== undefined && (
+                    <>
+                      <circle
+                        cx={node.x}
+                        cy={node.y}
+                        r={size / 2 - 4}
+                        fill="none"
+                        stroke="rgba(255,255,255,0.3)"
+                        strokeWidth={3}
+                        strokeDasharray={`${(node.progress / 100) * Math.PI * (size - 8)} ${Math.PI * (size - 8)}`}
+                        transform={`rotate(-90 ${node.x} ${node.y})`}
+                      />
+                      <text
+                        x={node.x}
+                        y={node.y + 4}
+                        textAnchor="middle"
+                        fill="white"
+                        fontSize={11}
+                        fontWeight="bold"
+                      >
+                        {node.progress}%
+                      </text>
+                    </>
+                  )}
+
+                  {/* 내부 원 (태스크/멤버) */}
+                  {node.type !== 'episode' && (
+                    <circle
+                      cx={node.x}
+                      cy={node.y}
+                      r={size / 4}
+                      fill="white"
+                      fillOpacity={0.9}
+                    />
+                  )}
+
+                  {/* 라벨 */}
+                  <text
+                    x={node.x}
+                    y={node.y + size / 2 + 14}
+                    textAnchor="middle"
+                    fill="currentColor"
+                    className="text-light-text dark:text-dark-text"
+                    fontSize={11}
+                    fontWeight={node.type === 'episode' ? 600 : 400}
+                    opacity={isHighlighted ? 1 : 0.6}
+                  >
+                    {node.label.length > 12 ? node.label.slice(0, 12) + '...' : node.label}
+                  </text>
+                </motion.g>
+              );
+            })}
           </g>
         </svg>
       </div>
 
-      {/* 사이드 패널 - 선택된 노드 정보 */}
-      <div className="w-72 bg-light-surface dark:bg-dark-surface rounded-lg border border-light-border dark:border-dark-border p-4 flex-shrink-0">
+      {/* 사이드 패널 */}
+      <div className="w-72 bg-light-surface dark:bg-dark-surface rounded-lg border border-light-border dark:border-dark-border p-4 flex-shrink-0 overflow-y-auto">
         <h3 className="font-semibold text-light-text dark:text-dark-text mb-4">노드 정보</h3>
 
         {!selectedNodeData && (
@@ -580,29 +804,35 @@ export function NodeMapView() {
           <h4 className="text-sm font-medium text-light-text-secondary dark:text-dark-text-secondary mb-3">
             범례
           </h4>
-          <div className="space-y-2 text-xs">
+          <div className="space-y-2 text-xs text-light-text-secondary dark:text-dark-text-secondary">
             <div className="flex items-center gap-2">
-              <div className="w-4 h-4 rounded-full bg-gray-400" />
-              <span>에피소드 (큰 원)</span>
+              <div className="w-5 h-5 rounded-full bg-gray-400" />
+              <span>에피소드</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3.5 h-3.5 rounded-full bg-gray-400" />
+              <span>태스크</span>
             </div>
             <div className="flex items-center gap-2">
               <div className="w-3 h-3 rounded-full bg-gray-400" />
-              <span>태스크 (작은 원)</span>
+              <span>팀원</span>
+            </div>
+            <div className="flex items-center gap-2 mt-3">
+              <div className="w-8 h-0.5 bg-gray-400" />
+              <span>실선: 소속</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-2.5 h-2.5 rounded-full bg-gray-400" />
-              <span>팀원 (외곽 원)</span>
-            </div>
-            <div className="flex items-center gap-2 mt-2">
-              <div className="w-6 h-px bg-gray-400" />
-              <span>연결선: 소속</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-px bg-gray-400" style={{ strokeDasharray: '4 2' }} />
-              <span className="border-b border-dashed border-gray-400 w-6" />
+              <div className="w-8 h-0.5 bg-gray-400 border-b border-dashed" style={{ borderStyle: 'dashed' }} />
               <span>점선: 담당</span>
             </div>
           </div>
+        </div>
+
+        {/* 단축키 안내 */}
+        <div className="mt-4 pt-4 border-t border-light-border dark:border-dark-border text-xs text-light-text-secondary dark:text-dark-text-secondary">
+          <p>휠: 확대/축소</p>
+          <p>드래그: 캔버스 이동</p>
+          <p>노드 드래그: 노드 이동</p>
         </div>
       </div>
     </motion.div>

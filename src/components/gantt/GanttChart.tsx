@@ -335,17 +335,22 @@ export function GanttChart() {
             {/* 날짜 열 */}
             <div className="flex">
               {days.map((day, index) => {
-                const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                const dayOfWeek = day.getDay();
+                const isSaturday = dayOfWeek === 6;
+                const isSunday = dayOfWeek === 0;
+                const isWeekend = isSaturday || isSunday;
                 const isTodayDate = isToday(day);
                 const isFirstOfMonth = day.getDate() === 1;
+                const isMonday = dayOfWeek === 1;
 
                 return (
                   <div
                     key={index}
                     className={cn(
-                      'flex flex-col items-center justify-center border-r border-light-border/50 dark:border-dark-border/50',
-                      isWeekend && 'bg-gray-50 dark:bg-gray-800/50',
-                      isTodayDate && 'bg-brand-primary/10'
+                      'flex flex-col items-center justify-center',
+                      isWeekend && 'bg-red-50 dark:bg-red-900/20',
+                      isTodayDate && 'bg-brand-primary/20',
+                      isMonday && 'border-l-2 border-gray-300 dark:border-gray-600'
                     )}
                     style={{ width: `${DAY_WIDTH}px` }}
                   >
@@ -360,7 +365,7 @@ export function GanttChart() {
                         isTodayDate
                           ? 'font-bold text-brand-primary'
                           : isWeekend
-                          ? 'text-light-text-secondary/60 dark:text-dark-text-secondary/60'
+                          ? 'font-medium text-red-500 dark:text-red-400'
                           : 'text-light-text-secondary dark:text-dark-text-secondary'
                       )}
                     >
@@ -399,22 +404,43 @@ export function GanttChart() {
 
                 {/* 간트 바 영역 */}
                 <div className="relative" style={{ width: `${totalDays * DAY_WIDTH}px`, height: '48px' }}>
+                  {/* 배경: 주말 표시 + 주간 구분선 */}
+                  {days.map((day, i) => {
+                    const dayOfWeek = day.getDay();
+                    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                    const isMonday = dayOfWeek === 1;
+
+                    return (
+                      <div
+                        key={`bg-${i}`}
+                        className={cn(
+                          'absolute top-0 bottom-0',
+                          isWeekend && 'bg-red-50/50 dark:bg-red-900/10',
+                          isMonday && 'border-l-2 border-gray-200 dark:border-gray-700'
+                        )}
+                        style={{ left: `${i * DAY_WIDTH}px`, width: `${DAY_WIDTH}px` }}
+                      />
+                    );
+                  })}
+
                   {/* 오늘 표시선 */}
                   {days.map((day, i) => {
                     if (isToday(day)) {
                       return (
                         <div
                           key={`today-${i}`}
-                          className="absolute top-0 bottom-0 w-0.5 bg-brand-primary/50 z-10"
-                          style={{ left: `${i * DAY_WIDTH + DAY_WIDTH / 2}px` }}
-                        />
+                          className="absolute top-0 bottom-0 w-1 bg-brand-primary z-20 shadow-lg"
+                          style={{ left: `${i * DAY_WIDTH + DAY_WIDTH / 2 - 2}px` }}
+                        >
+                          <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-3 h-3 bg-brand-primary rounded-full" />
+                        </div>
                       );
                     }
                     return null;
                   })}
 
                   {/* 간트 바 */}
-                  <div className="absolute inset-0 flex items-center px-1">
+                  <div className="absolute inset-0 flex items-center px-1 z-10">
                     <GanttBar
                       episode={episode}
                       dateRange={dateRange}
