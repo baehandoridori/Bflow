@@ -1,0 +1,184 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom base styles */
+@layer base {
+  html {
+    font-family: 'Pretendard', 'Inter', system-ui, sans-serif;
+  }
+
+  body {
+    @apply bg-light-bg text-light-text dark:bg-dark-bg dark:text-dark-text;
+    @apply transition-colors duration-200;
+  }
+
+  /* Scrollbar styling */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 dark:bg-gray-600 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400 dark:bg-gray-500;
+  }
+}
+
+/* Custom component styles */
+@layer components {
+  /* Shimmer effect for progress bars */
+  .shimmer {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.2) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s linear infinite;
+  }
+
+  /* Glass effect */
+  .glass {
+    @apply bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm;
+  }
+}
+
+/* Custom utilities */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+/* React Grid Layout Custom Styles */
+.react-grid-layout {
+  position: relative;
+}
+
+.react-grid-item {
+  transition: all 200ms ease;
+  transition-property: left, top, width, height;
+}
+
+.react-grid-item.cssTransforms {
+  transition-property: transform, width, height;
+}
+
+.react-grid-item.resizing {
+  z-index: 20;
+  will-change: width, height;
+}
+
+.react-grid-item.react-draggable-dragging {
+  transition: none;
+  z-index: 20;
+  will-change: transform;
+}
+
+.react-grid-item.dropping {
+  visibility: hidden;
+}
+
+.react-grid-item.react-grid-placeholder {
+  @apply bg-brand-primary/20 rounded-xl;
+  transition-duration: 100ms;
+  z-index: 2;
+  user-select: none;
+}
+
+/* Resize Handles */
+.react-resizable-handle {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.react-grid-item:hover .react-resizable-handle {
+  opacity: 1;
+}
+
+.react-resizable-handle::after {
+  content: '';
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid;
+  border-bottom: 2px solid;
+  @apply border-brand-primary;
+  border-radius: 2px;
+}
+
+.react-resizable-handle-se {
+  bottom: 0;
+  right: 0;
+  cursor: se-resize;
+}
+
+.react-resizable-handle-sw {
+  bottom: 0;
+  left: 0;
+  cursor: sw-resize;
+}
+
+.react-resizable-handle-sw::after {
+  right: auto;
+  left: 4px;
+  border-right: none;
+  border-left: 2px solid;
+  @apply border-brand-primary;
+}
+
+.react-resizable-handle-ne {
+  top: 0;
+  right: 0;
+  cursor: ne-resize;
+}
+
+.react-resizable-handle-ne::after {
+  bottom: auto;
+  top: 4px;
+  border-bottom: none;
+  border-top: 2px solid;
+  @apply border-brand-primary;
+}
+
+.react-resizable-handle-nw {
+  top: 0;
+  left: 0;
+  cursor: nw-resize;
+}
+
+.react-resizable-handle-nw::after {
+  right: auto;
+  left: 4px;
+  bottom: auto;
+  top: 4px;
+  border-right: none;
+  border-bottom: none;
+  border-left: 2px solid;
+  border-top: 2px solid;
+  @apply border-brand-primary;
+}
+
+/* Shimmer animation keyframes */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
