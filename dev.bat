@@ -52,10 +52,13 @@ if not exist "node_modules" (
 
 echo ----------------------------------------
 echo 서버 시작 중...
-echo 브라우저에서 http://localhost:5173 을 열어주세요.
+echo 브라우저가 자동으로 열립니다.
 echo 종료: Ctrl+C
 echo ----------------------------------------
 echo.
+
+REM 브라우저 자동 열기 (2초 후)
+start "" cmd /c "timeout /t 2 /nobreak >nul && start http://localhost:5173"
 
 REM 개발 서버 실행
 call npm run dev
