@@ -7,16 +7,7 @@ interface ProgressBarProps extends HTMLAttributes<HTMLDivElement> {
   size?: 'sm' | 'md' | 'lg';
   showLabel?: boolean;
   color?: string;
-  gradient?: boolean;
   shimmer?: boolean;
-}
-
-function progressGradient(pct: number): string {
-  if (pct >= 100) return 'linear-gradient(90deg, #00B894 0%, #55efc4 100%)';
-  if (pct >= 75) return 'linear-gradient(90deg, #FDCB6E 0%, #00B894 100%)';
-  if (pct >= 50) return 'linear-gradient(90deg, #E17055 0%, #FDCB6E 100%)';
-  if (pct >= 25) return 'linear-gradient(90deg, #FF6B6B 0%, #E17055 60%, #FDCB6E 100%)';
-  return 'linear-gradient(90deg, #FF6B6B 0%, #E17055 100%)';
 }
 
 export const ProgressBar = forwardRef<HTMLDivElement, ProgressBarProps>(
@@ -28,7 +19,6 @@ export const ProgressBar = forwardRef<HTMLDivElement, ProgressBarProps>(
       size = 'md',
       showLabel = false,
       color,
-      gradient = false,
       shimmer = false,
       ...props
     },
@@ -58,14 +48,12 @@ export const ProgressBar = forwardRef<HTMLDivElement, ProgressBarProps>(
         >
           <div
             className={cn(
-              'h-full rounded-full transition-all duration-700 ease-out relative',
-              !color && !gradient && 'bg-brand-primary'
+              'h-full rounded-full transition-all duration-500 ease-out relative',
+              !color && 'bg-brand-primary'
             )}
             style={{
               width: `${percentage}%`,
-              ...(gradient
-                ? { background: progressGradient(percentage) }
-                : color ? { backgroundColor: color } : {}),
+              backgroundColor: color,
             }}
           >
             {shimmer && (
