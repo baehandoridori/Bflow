@@ -15,6 +15,8 @@ export const Card = forwardRef<HTMLDivElement, CardProps>(
           variant === 'default' && [
             'bg-light-surface dark:bg-dark-surface',
             'border border-light-border dark:border-dark-border',
+            'shadow-sm shadow-black/5 dark:shadow-black/10',
+            'hover:shadow-md hover:shadow-black/10 dark:hover:shadow-black/20',
           ],
           variant === 'elevated' && [
             'bg-light-surface dark:bg-dark-surface',
