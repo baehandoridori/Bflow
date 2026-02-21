@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 앱 전체 텍스트 선택 방지 (드래그 시 파란색 하이라이트 제거) */
+*, *::before, *::after {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+/* 입력 필드는 텍스트 선택 허용 */
+input, textarea, select, [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 /* Custom base styles */
 @layer base {
   html {
