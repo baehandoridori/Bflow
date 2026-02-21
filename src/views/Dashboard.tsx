@@ -140,6 +140,7 @@ export function Dashboard() {
         rowHeight={80}
         margin={[16, 16]}
         containerPadding={[0, 0]}
+        compactType="vertical"
         onLayoutChange={handleLayoutChange}
         onDragStart={handleDragStart}
         onDragStop={handleDragStop}
