@@ -74,8 +74,15 @@ function GanttBar({
   isDragging,
   previewDates,
 }: GanttBarProps) {
-  const startDate = previewDates ? new Date(previewDates.startDate) : new Date(episode.startDate);
-  const dueDate = previewDates ? new Date(previewDates.dueDate) : new Date(episode.dueDate);
+  const rawStart = previewDates ? previewDates.startDate : episode.startDate;
+  const rawDue = previewDates ? previewDates.dueDate : episode.dueDate;
+
+  if (!rawStart || !rawDue) return null;
+
+  const startDate = new Date(rawStart);
+  const dueDate = new Date(rawDue);
+
+  if (isNaN(startDate.getTime()) || isNaN(dueDate.getTime())) return null;
 
   const startOffset = differenceInDays(startDate, dateRange.start);
   const duration = differenceInDays(dueDate, startDate) + 1;

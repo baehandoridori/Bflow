@@ -210,7 +210,7 @@ export function Timeline() {
                   <div className="flex items-center gap-3">
                     <div
                       className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: project?.color }}
+                      style={{ backgroundColor: project?.color || '#6B7280' }}
                     />
                     <div>
                       <h3 className="font-semibold text-light-text dark:text-dark-text">
