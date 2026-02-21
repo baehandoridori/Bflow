@@ -247,7 +247,7 @@ function EpisodeRow({ episode, projectColor, activeTooltip, setActiveTooltip }: 
             <div
               key={stage}
               className={cn(
-                'flex-1 text-center text-[9px] truncate',
+                'flex-1 text-center text-[10px] truncate',
                 isCurrent
                   ? 'text-brand-primary font-medium'
                   : 'text-light-text-secondary dark:text-dark-text-secondary'
