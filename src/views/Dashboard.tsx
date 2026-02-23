@@ -17,12 +17,13 @@ import 'react-resizable/css/styles.css';
 const ResponsiveGridLayout = WidthProvider(Responsive);
 
 // Default layout configuration
+// minW:minH 비율을 약 1:3 으로 맞춤 (컬럼 ~280px, 행 80px → 1col:3row ≈ 280:240 ≈ 1:1)
 const DEFAULT_LAYOUTS: Layouts = {
   lg: [
-    { i: 'summary', x: 0, y: 0, w: 2, h: 2, minW: 1, minH: 2 },
+    { i: 'summary', x: 0, y: 0, w: 2, h: 2, minW: 1, minH: 3 },
     { i: 'gantt', x: 2, y: 0, w: 2, h: 4, minW: 2, minH: 3 },
-    { i: 'team', x: 0, y: 2, w: 2, h: 4, minW: 1, minH: 2 },
-    { i: 'tasks', x: 0, y: 6, w: 2, h: 4, minW: 1, minH: 2 },
+    { i: 'team', x: 0, y: 2, w: 2, h: 4, minW: 1, minH: 3 },
+    { i: 'tasks', x: 0, y: 6, w: 2, h: 4, minW: 1, minH: 3 },
     { i: 'calendar', x: 2, y: 4, w: 2, h: 4, minW: 1, minH: 3 },
   ],
 };
